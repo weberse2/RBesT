@@ -1,6 +1,3 @@
-# Code adapted from
-# https://raw.githubusercontent.com/paul-buerkner/brms/refs/heads/master/R/posterior.R
-
 #'
 #' Transform `gMAP` to `draws` objects
 #'
@@ -64,9 +61,8 @@ as_draws.gMAP <- function(
   inc_warmup = FALSE,
   ...
 ) {
-  # draws_list is the fastest format to convert to at the moment
   .as_draws_conversion(
-    x$fit,
+    x,
     as_draws_list,
     variable = variable,
     regex = regex,
@@ -88,7 +84,7 @@ as_draws_matrix.gMAP <- function(
   ...
 ) {
   .as_draws_conversion(
-    x$fit,
+    x,
     as_draws_matrix,
     variable = variable,
     regex = regex,
@@ -110,7 +106,7 @@ as_draws_array.gMAP <- function(
   ...
 ) {
   .as_draws_conversion(
-    x$fit,
+    x,
     as_draws_array,
     variable = variable,
     regex = regex,
@@ -132,7 +128,7 @@ as_draws_df.gMAP <- function(
   ...
 ) {
   .as_draws_conversion(
-    x$fit,
+    x,
     as_draws_df,
     variable = variable,
     regex = regex,
@@ -154,7 +150,7 @@ as_draws_list.gMAP <- function(
   ...
 ) {
   .as_draws_conversion(
-    x$fit,
+    x,
     as_draws_list,
     variable = variable,
     regex = regex,
@@ -176,7 +172,7 @@ as_draws_rvars.gMAP <- function(
   ...
 ) {
   .as_draws_conversion(
-    x$fit,
+    x,
     as_draws_rvars,
     variable = variable,
     regex = regex,
@@ -185,9 +181,6 @@ as_draws_rvars.gMAP <- function(
   )
 }
 
-# in stanfit objects draws are stored in a draws_list-like format
-# so converting from there will be most efficient
-# may be removed once rstan supports posterior natively
 #' @keywords internal
 .as_draws_conversion <- function(
   x,
@@ -197,56 +190,42 @@ as_draws_rvars.gMAP <- function(
   inc_warmup = FALSE,
   ...
 ) {
-  stopifnot(.is.stanfit(x))
-  inc_warmup <- .as_one_logical(inc_warmup)
-  if (!length(x@sim$samples)) {
-    .stop2("The model does not contain posterior draws.")
+  stopifnot(inherits(x, "gMAP"))
+  if (!is.logical(inc_warmup) || length(inc_warmup) != 1L || is.na(inc_warmup)) {
+    stop("'inc_warmup' must be a single non-missing logical value.", call. = FALSE)
   }
-  ## since rstan::extract returns an array we tell posterior to go via
-  ## arrays directly
-  out <- draws_converter(as_draws_array(rstan::extract(
-    x,
-    permuted = FALSE,
-    inc_warmup = inc_warmup
-  )))
+  draws <- .gmap_get_stored_draws(x, inc_warmup = inc_warmup)
+  if (is.null(draws)) {
+    stop("The model does not contain posterior draws.", call. = FALSE)
+  }
+  out <- draws_converter(draws)
   # subset variables
   subset_draws(out, variable = variable, regex = regex)
 }
 
 #' @keywords internal
-.is.stanfit <- function(x) {
-  inherits(x, "stanfit")
-}
-
-# coerce 'x' to a single logical value
-#' @keywords internal
-.as_one_logical <- function(x, allow_na = FALSE) {
-  s <- substitute(x)
-  x <- as.logical(x)
-  if (length(x) != 1L || anyNA(x) && !allow_na) {
-    s <- .deparse0(s, max_char = 100L)
-    .stop2("Cannot coerce '", s, "' to a single logical value.")
+.gmap_get_stored_draws <- function(x, inc_warmup = FALSE) {
+  if (is.null(x$draws)) {
+    return(NULL)
   }
-  x
-}
 
-#' @keywords internal
-.stop2 <- function(...) {
-  stop(..., call. = FALSE)
-}
-
-#' @keywords internal
-collapse <- function(..., sep = "") {
-  paste(..., sep = sep, collapse = "")
-}
-
-# combine deparse lines into one string
-# since R 4.0 we also have base::deparse1 for this purpose
-#' @keywords internal
-.deparse0 <- function(x, max_char = NULL, ...) {
-  out <- collapse(deparse(x, ...))
-  if (isTRUE(max_char > 0)) {
-    out <- substr(out, 1L, max_char)
+  if (!inc_warmup) {
+    return(x$draws)
   }
-  out
+
+  if (is.null(x$draws_warmup)) {
+    stop(
+      "Warmup draws were not stored. Refit with ",
+      "options(RBesT.MC.save_warmup = TRUE) before calling ",
+      "'inc_warmup = TRUE'."
+      ,
+      call. = FALSE
+    )
+  }
+
+  posterior::as_draws_array(abind::abind(
+    as.array(x$draws_warmup),
+    as.array(x$draws),
+    along = 1
+  ))
 }

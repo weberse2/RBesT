@@ -143,11 +143,12 @@ mixfit.gMAP <- function(sample, type, thin, ...) {
     poisson = "gamma",
     "unknown"
   )
-  sim <- rstan::extract(
-    sample$fit,
-    pars = "theta_resp_pred",
-    inc_warmup = FALSE,
-    permuted = FALSE
+  sim <- as.array(
+    posterior::subset_draws(
+      sample$draws,
+      variable = "theta_resp_pred",
+      scalar = TRUE
+    )
   )
   sim <- as.vector(sim[seq(1, dim(sim)[1], by = thin), , ])
   mix <- mixfit.default(sim, type, thin = 1, ...)

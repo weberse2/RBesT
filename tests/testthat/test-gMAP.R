@@ -43,9 +43,14 @@ get_std_quants <- function(sim, med, disp) {
 ## used for now for comparisons to rstanarm (maybe drop as we have SBC
 ## now?)
 cmp_reference <- function(best_gmap, OB_ref) {
-  best_sim <- rstan::extract(
-    best_gmap$fit,
-    pars = c("beta", "tau", "theta_resp_pred")
+  best_draws <- as.data.frame(as_draws_df(
+    best_gmap,
+    variable = c("beta", "tau", "theta_resp_pred")
+  ))
+  best_sim <- list(
+    beta = best_draws$`beta[1]`,
+    tau = best_draws$`tau[1]`,
+    theta_resp_pred = best_draws$theta_resp_pred
   )
   for (n in names(best_sim)) {
     OB_case <- OB_ref[[n]]
@@ -223,8 +228,11 @@ test_that("gMAP reports divergences", {
       init = 10
     )
   ))
-  sp <- rstan::get_sampler_params(mcmc_div$fit, inc_warmup = FALSE)[[1]]
-  expect_true(sum(sp[, "divergent__"]) > 0)
+  div_draws <- posterior::subset_draws(
+    mcmc_div$draws_diag,
+    variable = "divergent__"
+  )
+  expect_true(sum(as.array(div_draws)) > 0)
 })
 
 ## set sampling back to standards

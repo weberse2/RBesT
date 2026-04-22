@@ -2,9 +2,14 @@
 .Rhistory
 .RData
 .Ruserdata
+.Rprofile
 docs
 src/
 *.*~
+*~
+.DS_Store
+*.orig
+*.rej
 inst/sbc/sbc*html
 .vscode/
 *.dll
@@ -12,3 +17,4 @@ inst/sbc/sbc*html
 *.Rtest
 *.Rtestfast
 build/
+_brms-cache/
