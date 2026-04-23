@@ -1,44 +1,11 @@
 # test S3 methods in alphabetical order
 test_that("as_draws and friends have resonable outputs", {
-  skip_on_cran()
+  map <- load_gmap_fixture("gmap_binomial_fixed_tau")
+  map_full <- load_gmap_fixture("gmap_binomial_fixed_tau_warmup")
 
-  n_iter <- 200
-  n_warmup <- 100
-  n_chains <- 2
-  suppressMessages(suppressWarnings(
-    {
-      withr::with_options(list(RBesT.MC.save_warmup = FALSE), {
-        set.seed(34563)
-        map <- gMAP(
-          cbind(r, n - r) ~ 1 | study,
-          family = binomial,
-          data = AS,
-          tau.dist = "Fixed",
-          tau.prior = 0.5,
-          beta.prior = 2,
-          warmup = n_warmup,
-          iter = n_iter,
-          chains = n_chains,
-          thin = 1
-        )
-      })
-      withr::with_options(list(RBesT.MC.save_warmup = TRUE), {
-        set.seed(34563)
-        map_full <- gMAP(
-          cbind(r, n - r) ~ 1 | study,
-          family = binomial,
-          data = AS,
-          tau.dist = "Fixed",
-          tau.prior = 0.5,
-          beta.prior = 2,
-          warmup = n_warmup,
-          iter = n_iter,
-          chains = n_chains,
-          thin = 1
-        )
-      })
-    }
-  ))
+  n_iter <- map$metadata_mcmc$iter
+  n_warmup <- map$metadata_mcmc$warmup
+  n_chains <- map$metadata_mcmc$chains
 
   draws <- as_draws(
     map,

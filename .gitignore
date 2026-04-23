@@ -18,3 +18,4 @@ inst/sbc/sbc*html
 *.Rtestfast
 build/
 _brms-cache/
+tests/testthat/fixtures/*.rds

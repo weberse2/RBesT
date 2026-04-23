@@ -2,10 +2,14 @@
 
 ## Enhancements
 
+* Use modern posterior functions to produce posterior summaries. Note
+  that this can change the numeric values wrt to previous versions
+  (e.g. a modernized Rhat definition is used).
 * Refactor `gMAP` posterior sample storage to use `posterior` draws
   objects plus aligned sampler diagnostics instead of relying on a raw
   `rstan` `stanfit`; update summaries, predictions, plotting, and
-  posterior accessors accordingly.
+  posterior accessors accordingly. The previously stored `fit` slot
+  has been removed.
 
 # RBesT 1.9-0 - March 13th, 2026
 
