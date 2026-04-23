@@ -16,8 +16,11 @@ INCS =
 R_PKG_SRCS = $(wildcard R/*.R inst/examples/*R)
 R_SRCS = $(wildcard *.R $(foreach fd, $(SRCDIR), $(fd)/*.R))
 R_TEST_SRCS = $(wildcard tests/testthat/test*.R)
+R_TEST_HELPER_SRCS = $(wildcard tests/testthat/helper*.R)
 R_TEST_OBJS = $(R_TEST_SRCS:.R=.Rtest)
 R_TESTFAST_OBJS = $(R_TEST_SRCS:.R=.Rtestfast)
+FIXTURE_SRCS = $(wildcard tests/testthat/fixtures-src/*_fixture.R)
+FIXTURE_OBJS = $(patsubst tests/testthat/fixtures-src/%_fixture.R,tests/testthat/fixtures/%.rds,$(FIXTURE_SRCS))
 RMD_SRCS = $(wildcard *.Rmd $(foreach fd, $(SRCDIR), $(fd)/x*.Rmd))
 STAN_SRCS = $(wildcard *.stan $(foreach fd, $(SRCDIR), $(fd)/*.stan))
 SRCS = $(R_PKG_SRCS) $(R_SRCS) $(RMD_SRCS) $(STAN_SRCS)
@@ -26,6 +29,7 @@ BIN_OBJS = src/package-binary R/sysdata.rda
 DOC_OBJS = man/package-doc inst/doc/$(RPKG).pdf
 # RCMD ?= R_PROFILE_USER="$(PROJROOT_ABS)/.Rprofile" "${R_HOME}/bin/R" -q
 RCMD ?= "${R_HOME}/bin/R" -q
+FIXTURE_FORCE ?= false
 
 R_HOME ?= $(shell R RHOME)
 PKG_VERSION ?= $(patsubst ‘%’, %, $(word 2, $(shell grep ^Version DESCRIPTION)))
@@ -35,6 +39,13 @@ MD5 ?= md5sum
 TMPDIR := $(realpath $(shell mktemp -d))
 
 all : $(TARGET)
+
+ifneq ($(filter true TRUE 1 yes YES,$(FIXTURE_FORCE)),)
+FIXTURE_FORCE_PREREQ = FORCE
+endif
+
+.PHONY: FORCE
+FORCE:
 
 # tell makefile how to turn a Rmd into an md file
 %.md : %.Rmd
@@ -50,15 +61,23 @@ all : $(TARGET)
 	cd $(@D); echo running $(RCMD) -e "rmarkdown::render('$(<F)', output_format=rmarkdown::html_document(self_contained=TRUE))"
 	cd $(@D); $(RCMD) -e "rmarkdown::render('$(<F)', output_format=rmarkdown::html_document(self_contained=TRUE))"
 
-tests/%.Rtest : tests/%.R $(R_PKG_SRCS) NAMESPACE
-	NOT_CRAN=true $(RCMD) -e "devtools::load_all()" -e "test_file('$<')" > $@ 2>&1
-	@printf "Test summary for $(<F): "
-	@grep '^\[' $@ | tail -n 1
+tests/testthat/fixtures/%.rds : tests/testthat/fixtures-src/%_fixture.R tools/build-test-fixture.R $(BIN_OBJS) $(FIXTURE_FORCE_PREREQ)
+	install -d $(@D)
+	NOT_CRAN=true $(RCMD) --slave --file=tools/build-test-fixture.R --args $< $@
 
-tests/%.Rtestfast : tests/%.R $(R_PKG_SRCS) NAMESPACE
-	NOT_CRAN=false $(RCMD) -e "devtools::load_all()" -e "test_file('$<')" > $@ 2>&1
-	@printf "Test summary for $(<F): "
-	@grep '^\[' $@ | tail -n 1
+tests/%.Rtest : tests/%.R $(R_TEST_HELPER_SRCS) $(R_PKG_SRCS) NAMESPACE tools/run-test-file.R $(BIN_OBJS) $(FIXTURE_OBJS)
+	@status=0; NOT_CRAN=true $(RCMD) --slave --file=tools/run-test-file.R --args $< > $@ 2>&1 || status=$$?; \
+	printf "Test summary for $(<F): "; \
+	grep '^\[' $@ | tail -n 1 || true; \
+	exit $$status
+
+# Fast/CRAN-like tests intentionally omit $(FIXTURE_OBJS); fixture-backed tests
+# should skip cleanly when the local cache is unavailable.
+tests/%.Rtestfast : tests/%.R $(R_TEST_HELPER_SRCS) $(R_PKG_SRCS) NAMESPACE tools/run-test-file.R $(BIN_OBJS)
+	@status=0; NOT_CRAN=false $(RCMD) --slave --file=tools/run-test-file.R --args $< > $@ 2>&1 || status=$$?; \
+	printf "Test summary for $(<F): "; \
+	grep '^\[' $@ | tail -n 1 || true; \
+	exit $$status
 
 
 R/stanmodels.R: $(STAN_SRCS)
@@ -185,6 +204,16 @@ test-all : $(R_TEST_OBJS)
 PHONY += testfast-all
 testfast-all : $(R_TESTFAST_OBJS)
 
+PHONY += test-fixtures
+test-fixtures : $(FIXTURE_OBJS)
+
+PHONY += clean-fixtures
+clean-fixtures:
+	rm -f $(FIXTURE_OBJS)
+
+PHONY += clean-test-fixtures
+clean-test-fixtures: clean-fixtures
+
 PHONY += retestfast-all
 retestfast-all : clean-test $(R_TESTFAST_OBJS)
 
@@ -217,7 +246,7 @@ check-winbuilder : check-winbuilder-devel check-winbuilder-release check-winbuil
 #    $(CC) -o $@ $(CFLAGS) -c $< $(INC_DIRS)
 
 PHONY += clean
-clean:
+clean: clean-fixtures
 	rm -rf build/*
 	rm -f man/*.Rd
 	rm -f NAMESPACE
@@ -255,4 +284,4 @@ echoes:
 print-%  : ; @echo $* = $($*)
 
 
-.PHONY = $(PHONY)
+.PHONY : $(PHONY)

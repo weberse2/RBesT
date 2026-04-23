@@ -32,6 +32,7 @@ src/stan_files/.*\.hpp$
 ^README\.md$
 ^tools
 ^design$
+^tests/testthat/fixtures/.*[.]rds$
 ^public
 ^man/package-doc$
 ^src/package-binary$
