@@ -104,30 +104,22 @@ predict.gMAP <- function(
     thin <- object$thin
   }
 
-  beta <- rstan::extract(
-    object$fit,
-    inc_warmup = FALSE,
-    permuted = FALSE,
-    pars = "beta"
-  )
+  beta <- as.array(posterior::subset_draws(object$draws, variable = "beta"))
   n.pred <- nrow(X)
   n.iter <- dim(beta)[1]
   n.chains <- dim(beta)[2]
 
   if (posterior_predict) {
     pred <- aperm(
-      rstan::extract(
-        object$fit,
-        inc_warmup = FALSE,
-        permuted = FALSE,
-        pars = "theta"
-      ),
+      as.array(posterior::subset_draws(object$draws, variable = "theta")),
       c(3, 1, 2)
     )
   } else {
-    pred <- apply(beta, c(1, 2), function(x) X %*% x)
-    if (n.pred == 1) {
-      pred <- array(pred, dim = c(1, dim(pred)))
+    pred <- array(NA_real_, dim = c(n.pred, n.iter, n.chains))
+    for (chain_id in seq_len(n.chains)) {
+      beta_chain <- beta[, chain_id, , drop = FALSE]
+      dim(beta_chain) <- c(n.iter, dim(beta)[3])
+      pred[, , chain_id] <- X %*% t(beta_chain)
     }
   }
 
@@ -144,12 +136,12 @@ predict.gMAP <- function(
     ## sample random effects for as many groups defined, which can
     ## be more than the ones in the data set, since we sample for
     ## all defined factor levels
-    tau <- as.vector(rstan::extract(
-      object$fit,
-      inc_warmup = FALSE,
-      permuted = FALSE,
-      pars = paste0("tau[", object$tau.strata.pred, "]")
-    )[sub_ind, , ])
+    tau_draws <- posterior::subset_draws(
+      object$draws,
+      variable = paste0("tau[", object$tau.strata.pred, "]"),
+      scalar = TRUE
+    )
+    tau <- as.vector(as.array(tau_draws)[sub_ind, , 1])
     if (object$REdist == "normal") {
       re <- tau * matrix(rnorm(n.groups * S, 0, 1), nrow = S)
     }
@@ -171,7 +163,16 @@ predict.gMAP <- function(
   }
   dimnames(pred) <- list(NULL, predNames)
 
-  stat <- SimSum(pred, probs = probs, margin = 2)
+  stat <- posterior::summarise_draws(
+    posterior::as_draws_matrix(pred),
+    "mean",
+    "median",
+    "sd",
+    ~posterior::quantile2(.x, probs = probs)
+  )
+  stat <- as.data.frame(stat)
+  rownames(stat) <- stat$variable
+  stat$variable <- NULL
   attr(pred, "summary") <- stat
   attr(pred, "type") <- type
   attr(pred, "family") <- object$family

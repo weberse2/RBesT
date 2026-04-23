@@ -1,3 +1,12 @@
+# RBesT 1.10-0.9000 - development version
+
+## Enhancements
+
+* Refactor `gMAP` posterior sample storage to use `posterior` draws
+  objects plus aligned sampler diagnostics instead of relying on a raw
+  `rstan` `stanfit`; update summaries, predictions, plotting, and
+  posterior accessors accordingly.
+
 # RBesT 1.9-0 - March 13th, 2026
 
 ## Enhancements

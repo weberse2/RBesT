@@ -99,9 +99,15 @@ test_that("as_draws and friends have resonable outputs", {
   expect_s3_class(draws, "draws_rvars")
   expect_true(posterior::nvariables(draws) > 0)
   expect_equal(posterior::ndraws(draws), nsamples(map))
-  n_saved_samples <- sum(map$fit@sim$n_save)
 
-  expect_equal(posterior::ndraws(draws), n_saved_samples)
+  expect_equal(
+    posterior::niterations(map$draws),
+    n_iter - n_warmup
+  )
+  expect_equal(
+    posterior::nchains(map$draws),
+    n_chains
+  )
   expect_equal(posterior::ndraws(draws), (n_iter - n_warmup) * n_chains)
   expect_equal(nsamples(map), (n_iter - n_warmup) * n_chains)
 
@@ -112,9 +118,19 @@ test_that("as_draws and friends have resonable outputs", {
     posterior::ndraws(draws_full),
     nsamples(map_full) + n_warmup * n_chains
   )
-  n_saved_samples_full <- sum(map_full$fit@sim$n_save)
 
-  expect_equal(posterior::ndraws(draws_full), n_saved_samples_full)
+  expect_equal(
+    posterior::niterations(map_full$draws),
+    n_iter - n_warmup
+  )
+  expect_equal(
+    posterior::niterations(map_full$draws_warmup),
+    n_warmup
+  )
+  expect_equal(
+    posterior::nchains(map_full$draws),
+    n_chains
+  )
   expect_equal(posterior::ndraws(draws_full), n_iter * n_chains)
   expect_equal(nsamples(map_full), (n_iter - n_warmup) * n_chains)
 })
