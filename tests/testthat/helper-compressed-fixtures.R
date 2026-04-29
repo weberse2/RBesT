@@ -35,25 +35,22 @@ load_compact_gmap_fixture <- function(name) {
   inject_compact_gmap_draws(get(spec_name, envir = env, inherits = FALSE))
 }
 
-#' Fit A One-Component MVN Spec From gMAP Draws
+#' Fit A Compact MVN Mixture Spec From gMAP Draws
 #'
 #' This helper supports the pilot fixture workflow. It fits one MVN for the
 #' model parameters and one MVN for the study-level theta draws.
 #'
 #' @param x A `gMAP` object with posterior draws.
 #' @param seed Seed used when the compact fixture is rehydrated.
-#' @param nc Number of MVN components. The pilot currently supports `nc = 1`.
+#' @param nc Number of MVN mixture components.
 #' @return A compact fixture spec list.
 create_compact_gmap_draw_spec <- function(x, seed, nc = 1L) {
   checkmate::assert_class(x, "gMAP")
   checkmate::assert_integerish(seed, lower = 1, any.missing = FALSE, len = 1)
   checkmate::assert_integerish(nc, lower = 1, any.missing = FALSE, len = 1)
-  if (nc != 1L) {
-    stop("Only one-component MVN specs are supported by the pilot.", call. = FALSE)
-  }
 
   theta_variables <- if (isTRUE(x$has_intercept)) {
-    c("theta", "theta_resp_pred")
+    c("theta", "theta_pred")
   } else {
     "theta"
   }
@@ -75,8 +72,12 @@ create_compact_gmap_draw_spec <- function(x, seed, nc = 1L) {
     cbind(draws_beta, log(draws_tau), draws_lp)
   }
 
-  mvn_model <- compact_gmap_mvn_mix(mixfit(draws_model, "mvnorm", Nc = nc))
-  mvn_theta <- compact_gmap_mvn_mix(mixfit(draws_theta, "mvnorm", Nc = nc))
+  mvn_model <- compact_gmap_mvn_mix(suppressWarnings(
+    mixfit(draws_model, "mvnorm", Nc = nc)
+  ))
+  mvn_theta <- compact_gmap_mvn_mix(suppressWarnings(
+    mixfit(draws_theta, "mvnorm", Nc = nc)
+  ))
 
   list(
     name = NULL,
@@ -198,16 +199,21 @@ rehydrate_compact_gmap_draws <- function(spec, skeleton) {
 
   predictive_draws <- NULL
   if (isTRUE(skeleton$has_intercept)) {
+    theta_pred <- theta_draws[, "theta_pred"]
+    theta_resp_pred <- skeleton$family$linkinv(theta_pred)
     theta_resp_pred <- compact_gmap_bound_response_draws(
-      theta_draws[, "theta_resp_pred"],
+      theta_resp_pred,
       skeleton$family
     )
-    theta_draws[, "theta_resp_pred"] <- theta_resp_pred
-    theta_pred <- skeleton$family$linkfun(theta_resp_pred)
     theta_pred <- matrix(theta_pred, ncol = 1, dimnames = list(NULL, "theta_pred"))
+    theta_resp_pred <- matrix(
+      theta_resp_pred,
+      ncol = 1,
+      dimnames = list(NULL, "theta_resp_pred")
+    )
     predictive_draws <- cbind(
       theta_pred,
-      theta_draws[, "theta_resp_pred", drop = FALSE]
+      theta_resp_pred
     )
   }
 

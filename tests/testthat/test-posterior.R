@@ -1,7 +1,6 @@
 # test S3 methods in alphabetical order
 test_that("as_draws and friends have resonable outputs", {
-  map <- load_gmap_fixture("gmap_binomial_fixed_tau")
-  map_full <- load_gmap_fixture("gmap_binomial_fixed_tau_warmup")
+  map <- load_gmap_fixture("gmap_binomial_fixed_tau", type = "compact")
 
   n_iter <- map$metadata_mcmc$iter
   n_warmup <- map$metadata_mcmc$warmup
@@ -77,29 +76,37 @@ test_that("as_draws and friends have resonable outputs", {
   )
   expect_equal(posterior::ndraws(draws), (n_iter - n_warmup) * n_chains)
   expect_equal(nsamples(map), (n_iter - n_warmup) * n_chains)
+})
+
+test_that("as_draws_rvars can include warmup draws", {
+  map_full <- load_gmap_fixture("gmap_binomial_fixed_tau_warmup", type = "mcmc")
+
+  n_iter_full <- map_full$metadata_mcmc$iter
+  n_warmup_full <- map_full$metadata_mcmc$warmup
+  n_chains_full <- map_full$metadata_mcmc$chains
 
   draws_full <- as_draws_rvars(map_full, inc_warmup = TRUE)
   expect_s3_class(draws_full, "draws_rvars")
   expect_true(posterior::nvariables(draws_full) > 0)
   expect_equal(
     posterior::ndraws(draws_full),
-    nsamples(map_full) + n_warmup * n_chains
+    nsamples(map_full) + n_warmup_full * n_chains_full
   )
 
   expect_equal(
     posterior::niterations(map_full$draws),
-    n_iter - n_warmup
+    n_iter_full - n_warmup_full
   )
   expect_equal(
     posterior::niterations(map_full$draws_warmup),
-    n_warmup
+    n_warmup_full
   )
   expect_equal(
     posterior::nchains(map_full$draws),
-    n_chains
+    n_chains_full
   )
-  expect_equal(posterior::ndraws(draws_full), n_iter * n_chains)
-  expect_equal(nsamples(map_full), (n_iter - n_warmup) * n_chains)
+  expect_equal(posterior::ndraws(draws_full), n_iter_full * n_chains_full)
+  expect_equal(nsamples(map_full), (n_iter_full - n_warmup_full) * n_chains_full)
 })
 
 test_that("as_draws methods warn for draw-free gMAP skeletons", {

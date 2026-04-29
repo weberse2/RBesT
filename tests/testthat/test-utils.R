@@ -1,5 +1,5 @@
 predict_gmap_example <- function() {
-  map <- load_gmap_fixture("gmap_binomial_covariate")
+  map <- load_gmap_fixture("gmap_binomial_covariate", type = "compact")
   trans_cov <- map$data
   pred_cov <- predict(map)
   pred_new <- predict(map, data.frame(country = "CH", study = 12))
