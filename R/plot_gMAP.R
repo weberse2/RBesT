@@ -18,9 +18,11 @@
 #' @method plot gMAP
 #' @export
 plot.gMAP <- function(x, size = NULL, linewidth = NULL, ...) {
+  .gmap_warn_no_samples(x, object_name = deparse(substitute(x)))
+
   pl <- list()
 
-  draws <- x$draws
+  draws <- .gmap_draws_array(x)
   nuts_diag <- .gmap_diag_df(x$draws_diag)
 
   ## by default we return a small set of plots only
@@ -33,8 +35,8 @@ plot.gMAP <- function(x, size = NULL, linewidth = NULL, ...) {
     ## then we plot verbose in any case
   }
 
-  tau_pars <- posterior::variables(posterior::subset_draws(draws, variable = "tau"))
-  beta_pars <- posterior::variables(posterior::subset_draws(draws, variable = "beta"))
+  tau_pars <- posterior::variables(.gmap_draws_array(x, variable = "tau"))
+  beta_pars <- posterior::variables(.gmap_draws_array(x, variable = "beta"))
 
   tau_log_trans <- as.list(rep("log", length(tau_pars)))
   names(tau_log_trans) <- tau_pars

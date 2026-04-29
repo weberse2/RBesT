@@ -2,8 +2,6 @@
 #' Transform `gMAP` to `draws` objects
 #'
 #' @description
-#' `r lifecycle::badge("experimental")`
-#'
 #' Transform a `gMAP` object to a format supported by the
 #' \pkg{posterior} package.
 #'
@@ -24,9 +22,6 @@
 #' @details To subset iterations, chains, or draws, use the
 #'   [posterior::subset_draws()] method after
 #'   transforming the input object to a `draws` object.
-#'
-#' The function is experimental as the set of exported posterior
-#' variables are subject to updates.
 #'
 #' @seealso [posterior::draws()]
 #'   [posterior::subset_draws()]
@@ -67,6 +62,7 @@ as_draws.gMAP <- function(
     variable = variable,
     regex = regex,
     inc_warmup = inc_warmup,
+    object_name = deparse(substitute(x)),
     ...
   )
 }
@@ -89,6 +85,7 @@ as_draws_matrix.gMAP <- function(
     variable = variable,
     regex = regex,
     inc_warmup = inc_warmup,
+    object_name = deparse(substitute(x)),
     ...
   )
 }
@@ -111,6 +108,7 @@ as_draws_array.gMAP <- function(
     variable = variable,
     regex = regex,
     inc_warmup = inc_warmup,
+    object_name = deparse(substitute(x)),
     ...
   )
 }
@@ -133,6 +131,7 @@ as_draws_df.gMAP <- function(
     variable = variable,
     regex = regex,
     inc_warmup = inc_warmup,
+    object_name = deparse(substitute(x)),
     ...
   )
 }
@@ -155,6 +154,7 @@ as_draws_list.gMAP <- function(
     variable = variable,
     regex = regex,
     inc_warmup = inc_warmup,
+    object_name = deparse(substitute(x)),
     ...
   )
 }
@@ -177,6 +177,7 @@ as_draws_rvars.gMAP <- function(
     variable = variable,
     regex = regex,
     inc_warmup = inc_warmup,
+    object_name = deparse(substitute(x)),
     ...
   )
 }
@@ -188,6 +189,7 @@ as_draws_rvars.gMAP <- function(
   variable = NULL,
   regex = FALSE,
   inc_warmup = FALSE,
+  object_name = deparse(substitute(x)),
   ...
 ) {
   stopifnot(inherits(x, "gMAP"))
@@ -198,9 +200,18 @@ as_draws_rvars.gMAP <- function(
   if (is.null(draws)) {
     stop("The model does not contain posterior draws.", call. = FALSE)
   }
-  out <- draws_converter(draws)
   # subset variables
-  subset_draws(out, variable = variable, regex = regex)
+  draws <- subset_draws(draws, variable = variable, regex = regex)
+  if (posterior::ndraws(draws) == 0L) {
+    object_name <- paste(object_name, collapse = " ")
+    warning(
+      "gMAP object \"",
+      object_name,
+      "\" does not contain any samples.",
+      call. = FALSE
+    )
+  }
+  draws_converter(draws)
 }
 
 #' @keywords internal

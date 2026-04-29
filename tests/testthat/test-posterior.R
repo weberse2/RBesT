@@ -101,3 +101,40 @@ test_that("as_draws and friends have resonable outputs", {
   expect_equal(posterior::ndraws(draws_full), n_iter * n_chains)
   expect_equal(nsamples(map_full), (n_iter - n_warmup) * n_chains)
 })
+
+test_that("as_draws methods warn for draw-free gMAP skeletons", {
+  map <- suppressMessages(gMAP(
+    cbind(r, n - r) ~ 1 | study,
+    family = binomial,
+    data = AS,
+    tau.dist = "Fixed",
+    tau.prior = 0.5,
+    beta.prior = 2,
+    chains = 0
+  ))
+
+  expect_warning(
+    as_draws(map),
+    "gMAP object \"map\" does not contain any samples"
+  )
+  expect_warning(
+    posterior::as_draws_matrix(map),
+    "gMAP object \"map\" does not contain any samples"
+  )
+  expect_warning(
+    posterior::as_draws_array(map),
+    "gMAP object \"map\" does not contain any samples"
+  )
+  expect_warning(
+    posterior::as_draws_df(map),
+    "gMAP object \"map\" does not contain any samples"
+  )
+  expect_warning(
+    posterior::as_draws_list(map),
+    "gMAP object \"map\" does not contain any samples"
+  )
+  expect_warning(
+    posterior::as_draws_rvars(map),
+    "gMAP object \"map\" does not contain any samples"
+  )
+})
