@@ -180,8 +180,8 @@ test_that("compact gMAP fixture rehydrates fixed-tau draws", {
       "lp__"
     )
   )
-  expect_identical(dim(as_draws_array(map)), c(100L, 2L, 13L))
-  expect_identical(nsamples(map), 200L)
+  expect_identical(dim(as_draws_array(map)), c(1000L, 4L, 13L))
+  expect_identical(nsamples(map), 4000L)
   expect_s3_class(posterior::as_draws_matrix(map), "draws_matrix")
   expect_s3_class(posterior::as_draws_df(map), "draws_df")
   expect_warning(
@@ -208,6 +208,55 @@ test_that("compact gMAP fixture rehydrates fixed-tau draws", {
   )
 })
 
+test_that("gMAP fixture loader requires an explicit fixture type", {
+  expect_error(
+    do.call(load_gmap_fixture, list(name = "gmap_binomial_fixed_tau")),
+    "argument \"type\" is missing"
+  )
+
+  map <- suppressMessages(
+    load_gmap_fixture("gmap_binomial_fixed_tau_generated", type = "compact")
+  )
+
+  expect_s3_class(map, "gMAP")
+  expect_identical(map$backend, "compact-fixture")
+  expect_identical(
+    attr(map, "compact_fixture")$name,
+    "gmap_binomial_fixed_tau_generated"
+  )
+})
+
+test_that("generated compact gMAP fixture reads JSON sidecars", {
+  spec_path <- compact_gmap_fixture_spec_path("gmap_binomial_fixed_tau_generated")
+  expect_true(file.exists(spec_path))
+  expect_true(file.exists(testthat::test_path(
+    "fixtures-compact",
+    "gmap_binomial_fixed_tau_generated_mvn_model.json"
+  )))
+  expect_true(file.exists(testthat::test_path(
+    "fixtures-compact",
+    "gmap_binomial_fixed_tau_generated_mvn_theta.json"
+  )))
+  expect_true(any(grepl(
+    "read_mix_json",
+    readLines(spec_path, warn = FALSE),
+    fixed = TRUE
+  )))
+
+  map <- suppressMessages(
+    load_compact_gmap_fixture("gmap_binomial_fixed_tau_generated")
+  )
+
+  expect_s3_class(map, "gMAP")
+  expect_identical(map$backend, "compact-fixture")
+  expect_identical(
+    attr(map, "compact_fixture")$name,
+    "gmap_binomial_fixed_tau_generated"
+  )
+  expect_identical(dim(as_draws_array(map)), c(1000L, 4L, 13L))
+  expect_identical(nsamples(map), 4000L)
+})
+
 test_that("compact gMAP stores fixed tau outside the MVN", {
   map <- suppressMessages(
     load_compact_gmap_fixture("gmap_binomial_fixed_tau")
@@ -219,6 +268,59 @@ test_that("compact gMAP stores fixed tau outside the MVN", {
   expect_false(any(startsWith(compact_metadata$variables_model, "tau[")))
   tau_draws <- posterior::as_draws_matrix(map, variable = "tau")
   expect_equal(unique(as.numeric(tau_draws[, "tau[1]"])), 0.5)
+})
+
+test_that("compact gMAP supports configurable MVN component counts", {
+  testthat::skip_on_cran()
+
+  sampled <- withr::with_seed(
+    91742,
+    suppressWarnings(
+      suppressMessages(gMAP(
+        cbind(r, n - r) ~ 1 | study,
+        family = binomial,
+        data = AS,
+        tau.dist = "Fixed",
+        tau.prior = 0.5,
+        beta.prior = 2,
+        warmup = 50,
+        iter = 100,
+        chains = 1,
+        thin = 1
+      ))
+    )
+  )
+
+  spec <- create_compact_gmap_draw_spec(sampled, seed = 91743L, nc = 2L)
+  spec$name <- "gmap_binomial_two_component"
+  spec$builder <- function() {
+    suppressWarnings(
+      suppressMessages(gMAP(
+        cbind(r, n - r) ~ 1 | study,
+        family = binomial,
+        data = AS,
+        tau.dist = "Fixed",
+        tau.prior = 0.5,
+        beta.prior = 2,
+        warmup = 50,
+        iter = 100,
+        chains = 0,
+        thin = 1
+      ))
+    )
+  }
+
+  expect_identical(spec$nc, 2L)
+  expect_identical(ncol(spec$mvn_model), 2L)
+  expect_identical(ncol(spec$mvn_theta), 2L)
+
+  compact <- suppressWarnings(inject_compact_gmap_draws(spec))
+  expect_identical(attr(compact, "compact_fixture")$nc, 2L)
+  expect_identical(
+    dim(posterior::as_draws_array(compact)),
+    c(50L, 1L, length(spec$variables))
+  )
+  expect_no_error(summary(compact))
 })
 
 test_that("compact gMAP fixture supports downstream summaries", {
@@ -342,37 +444,4 @@ test_that("compact gMAP rehydrates stratified fixed tau constants", {
   tau_draws <- posterior::as_draws_matrix(compact, variable = "tau")
   expect_equal(unique(as.numeric(tau_draws[, "tau[1]"])), 0.25)
   expect_equal(unique(as.numeric(tau_draws[, "tau[2]"])), 0.5)
-})
-
-test_that("compact gMAP fixture stays close to the fixed-tau fixture", {
-  real <- load_gmap_fixture("gmap_binomial_fixed_tau")
-  compact <- suppressMessages(
-    load_compact_gmap_fixture("gmap_binomial_fixed_tau")
-  )
-
-  variables <- c("beta[1]", "tau[1]", "theta_resp_pred")
-  real_summary <- posterior::summarise_draws(
-    posterior::subset_draws(as_draws(real), variable = variables),
-    mean,
-    sd,
-    q5 = function(x) stats::quantile(x, 0.05),
-    q95 = function(x) stats::quantile(x, 0.95)
-  )
-  compact_summary <- posterior::summarise_draws(
-    posterior::subset_draws(as_draws(compact), variable = variables),
-    mean,
-    sd,
-    q5 = function(x) stats::quantile(x, 0.05),
-    q95 = function(x) stats::quantile(x, 0.95)
-  )
-
-  expect_equal(compact_summary$variable, real_summary$variable)
-  expect_equal(compact_summary$mean, real_summary$mean, tolerance = 0.05)
-  expect_equal(compact_summary$sd, real_summary$sd, tolerance = 0.05)
-  expect_equal(compact_summary[["5%"]], real_summary[["5%"]], tolerance = 0.10)
-  expect_equal(
-    compact_summary[["95%"]],
-    real_summary[["95%"]],
-    tolerance = 0.10
-  )
 })

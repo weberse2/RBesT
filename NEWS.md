@@ -10,6 +10,9 @@
   `rstan` `stanfit`; update summaries, predictions, plotting, and
   posterior accessors accordingly. The previously stored `fit` slot
   has been removed.
+* Enable default test coverage for `gMAP` related functions using
+  compact approximate posterior draw fixtures, so these tests can run
+  routinely without full MCMC fixture generation.
 
 # RBesT 1.9-0 - March 13th, 2026
 

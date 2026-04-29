@@ -19,9 +19,12 @@ R_TEST_SRCS = $(wildcard tests/testthat/test*.R)
 R_TEST_HELPER_SRCS = $(wildcard tests/testthat/helper*.R)
 R_TEST_OBJS = $(R_TEST_SRCS:.R=.Rtest)
 R_TESTFAST_OBJS = $(R_TEST_SRCS:.R=.Rtestfast)
-FIXTURE_SRCS = $(wildcard tests/testthat/fixtures-src/*_fixture.R)
-FIXTURE_OBJS = $(patsubst tests/testthat/fixtures-src/%_fixture.R,tests/testthat/fixtures/%.rds,$(FIXTURE_SRCS))
+FIXTURE_SRCS = $(wildcard tests/testthat/fixtures-mcmc-src/*_fixture.R)
+FIXTURE_OBJS = $(patsubst tests/testthat/fixtures-mcmc-src/%_fixture.R,tests/testthat/fixtures-mcmc/%.rds,$(FIXTURE_SRCS))
 COMPACT_FIXTURE_SRCS = $(wildcard tests/testthat/fixtures-compact/*_spec.R)
+COMPACT_FIXTURE_RECIPE_SRCS = $(wildcard tests/testthat/fixtures-compact-src/*_fixture.R)
+COMPACT_FIXTURE_OBJS = $(patsubst tests/testthat/fixtures-compact-src/%_fixture.R,tests/testthat/fixtures-compact/%_spec.R,$(COMPACT_FIXTURE_RECIPE_SRCS))
+COMPACT_FIXTURE_REPORT_OBJS = $(patsubst tests/testthat/fixtures-compact-src/%_fixture.R,tests/testthat/fixtures-compact/%.report,$(COMPACT_FIXTURE_RECIPE_SRCS))
 RMD_SRCS = $(wildcard *.Rmd $(foreach fd, $(SRCDIR), $(fd)/x*.Rmd))
 STAN_SRCS = $(wildcard *.stan $(foreach fd, $(SRCDIR), $(fd)/*.stan))
 SRCS = $(R_PKG_SRCS) $(R_SRCS) $(RMD_SRCS) $(STAN_SRCS)
@@ -62,9 +65,20 @@ FORCE:
 	cd $(@D); echo running $(RCMD) -e "rmarkdown::render('$(<F)', output_format=rmarkdown::html_document(self_contained=TRUE))"
 	cd $(@D); $(RCMD) -e "rmarkdown::render('$(<F)', output_format=rmarkdown::html_document(self_contained=TRUE))"
 
-tests/testthat/fixtures/%.rds : tests/testthat/fixtures-src/%_fixture.R tools/build-test-fixture.R $(BIN_OBJS) $(FIXTURE_FORCE_PREREQ)
+tests/testthat/fixtures-mcmc/%.rds : tests/testthat/fixtures-mcmc-src/%_fixture.R tools/build-test-fixture.R $(BIN_OBJS) $(FIXTURE_FORCE_PREREQ)
 	install -d $(@D)
 	NOT_CRAN=true $(RCMD) --slave --file=tools/build-test-fixture.R --args $< $@
+
+tests/testthat/fixtures-compact/%_spec.R : tests/testthat/fixtures-compact-src/%_fixture.R tools/build-compact-gmap-fixture.R tools/compact-gmap-fixture-utils.R $(R_TEST_HELPER_SRCS) $(BIN_OBJS) $(FIXTURE_FORCE_PREREQ)
+	install -d $(@D)
+	NOT_CRAN=true $(RCMD) --slave --file=tools/build-compact-gmap-fixture.R --args $< $(@D) $*
+
+tests/testthat/fixtures-compact/%.report : tests/testthat/fixtures-compact-src/%_fixture.R tests/testthat/fixtures-compact/%_spec.R tools/report-compact-gmap-fixtures.R tools/compact-gmap-fixture-utils.R $(R_TEST_HELPER_SRCS) $(BIN_OBJS)
+	install -d $(@D)
+	@status=0; NOT_CRAN=true $(RCMD) --slave --file=tools/report-compact-gmap-fixtures.R --args $< $@ > $@.log 2>&1 || status=$$?; \
+	cat $@.log; \
+	if [ $$status -eq 0 ]; then rm -f $@.log; fi; \
+	exit $$status
 
 tests/%.Rtest : tests/%.R $(R_TEST_HELPER_SRCS) $(COMPACT_FIXTURE_SRCS) $(R_PKG_SRCS) NAMESPACE tools/run-test-file.R $(BIN_OBJS) $(FIXTURE_OBJS)
 	@status=0; NOT_CRAN=true $(RCMD) --slave --file=tools/run-test-file.R --args $< > $@ 2>&1 || status=$$?; \
@@ -208,9 +222,18 @@ testfast-all : $(R_TESTFAST_OBJS)
 PHONY += test-fixtures
 test-fixtures : $(FIXTURE_OBJS)
 
+PHONY += compact-fixtures
+compact-fixtures : $(COMPACT_FIXTURE_OBJS)
+
+PHONY += compact-fixture-report
+compact-fixture-report : $(COMPACT_FIXTURE_REPORT_OBJS)
+	@cat $(COMPACT_FIXTURE_REPORT_OBJS)
+
 PHONY += clean-fixtures
 clean-fixtures:
 	rm -f $(FIXTURE_OBJS)
+	rm -f $(COMPACT_FIXTURE_REPORT_OBJS)
+	rm -f $(COMPACT_FIXTURE_REPORT_OBJS:%=%.log)
 
 PHONY += clean-test-fixtures
 clean-test-fixtures: clean-fixtures
