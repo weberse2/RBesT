@@ -135,6 +135,11 @@ specification and overall syntax follows mainly
 \code{\link[stats:glm]{stats::glm()}} conventions.
 }
 \details{
+Setting \code{chains = 0} runs the model setup without Stan sampling and returns
+a \code{gMAP} skeleton without posterior draws. This mode is intended for
+advanced workflows such as fixture construction where draws are injected
+later.
+
 The meta-analytic-predictive (MAP) approach derives a prior from
 historical data using a hierarchical model.  The statistical model is
 formulated as a generalized linear mixed model for binary, normal
@@ -269,7 +274,9 @@ estimates for each data item used during the analysis of the given
 distribution. User can choose with \code{type} if the result is on
 the response or the link scale.
 
-\item \code{as.matrix(gMAP)}: extracts the posterior sample of the model.
+\item \code{as.matrix(gMAP)}: \ifelse{html}{\href{https://lifecycle.r-lib.org/articles/stages.html#deprecated}{\figure{lifecycle-deprecated.svg}{options: alt='[Deprecated]'}}}{\strong{[Deprecated]}}
+extracts the posterior sample of the model. Use
+\code{\link[posterior:draws_matrix]{posterior::as_draws_matrix()}} instead.
 
 \item \code{summary(gMAP)}: returns the summaries of a gMAP.
 analysis. Output is a \code{gMAPsummary} object, which is a list containing
