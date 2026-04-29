@@ -42,6 +42,123 @@
   posterior::as_draws_array(diag_array)
 }
 
+#' Create An Empty Posterior Draws Array For A gMAP Skeleton
+#'
+#' @keywords internal
+.gmap_empty_draws_array <- function(n_theta, n_beta, n_tau, has_intercept) {
+  variables <- c(
+    paste0("theta[", seq_len(n_theta), "]"),
+    paste0("beta[", seq_len(n_beta), "]"),
+    paste0("tau[", seq_len(n_tau), "]"),
+    if (isTRUE(has_intercept)) c("theta_pred", "theta_resp_pred"),
+    "lp__"
+  )
+
+  posterior::as_draws_array(array(
+    numeric(),
+    dim = c(0L, 0L, length(variables)),
+    dimnames = list(
+      iteration = character(),
+      chain = character(),
+      variable = variables
+    )
+  ))
+}
+
+#' Create An Empty Sampler Diagnostics Array For A gMAP Skeleton
+#'
+#' @keywords internal
+.gmap_empty_diag_draws_array <- function() {
+  variables <- c(
+    "accept_stat__",
+    "stepsize__",
+    "treedepth__",
+    "n_leapfrog__",
+    "divergent__",
+    "energy__"
+  )
+
+  posterior::as_draws_array(array(
+    numeric(),
+    dim = c(0L, 0L, length(variables)),
+    dimnames = list(
+      iteration = character(),
+      chain = character(),
+      variable = variables
+    )
+  ))
+}
+
+#' Create An NA Summary Table For Empty Draws
+#'
+#' @keywords internal
+.gmap_empty_draws_summary <- function(variables, probs, row_names = NULL) {
+  qnames <- names(posterior::quantile2(numeric(), probs = probs))
+  out <- as.data.frame(matrix(
+    NA_real_,
+    nrow = length(variables),
+    ncol = length(c("mean", "median", "sd", qnames)),
+    dimnames = list(NULL, c("mean", "median", "sd", qnames))
+  ))
+  if (is.null(row_names)) {
+    row_names <- variables
+  }
+  rownames(out) <- row_names
+  out
+}
+
+#' Access Posterior Draws For gMAP Helpers
+#'
+#' @keywords internal
+.gmap_draws_array <- function(x, variable = NULL, regex = FALSE) {
+  if (inherits(x, "gMAP")) {
+    draws <- .gmap_get_stored_draws(x)
+    if (is.null(draws)) {
+      stop("The model does not contain posterior draws.", call. = FALSE)
+    }
+    return(posterior::subset_draws(draws, variable = variable, regex = regex))
+  }
+
+  posterior::subset_draws(x$draws, variable = variable, regex = regex)
+}
+
+#' Thin Draws While Preserving Empty Skeleton Draws
+#'
+#' @keywords internal
+.gmap_thin_draws <- function(x, thin) {
+  checkmate::assert_integerish(
+    thin,
+    lower = 1,
+    len = 1,
+    any.missing = FALSE
+  )
+  thin <- as.integer(thin)
+
+  if (posterior::ndraws(x) == 0L || thin <= 1L) {
+    return(x)
+  }
+
+  posterior::thin_draws(x, thin = thin)
+}
+
+#' Warn When A gMAP Object Has No Posterior Samples
+#'
+#' @keywords internal
+.gmap_warn_no_samples <- function(x, object_name) {
+  draws <- .gmap_get_stored_draws(x)
+  if (is.null(draws) || posterior::ndraws(draws) == 0L) {
+    object_name <- paste(object_name, collapse = " ")
+    warning(
+      "gMAP object \"",
+      object_name,
+      "\" does not contain any samples.",
+      call. = FALSE
+    )
+  }
+
+  invisible(NULL)
+}
+
 #' Collect MCMC metadata for a gMAP fit
 #'
 #' @keywords internal
@@ -83,7 +200,14 @@
   transform = NULL,
   row_names = NULL
 ) {
-  summary_draws <- posterior::subset_draws(x$draws, variable = variables)
+  summary_draws <- .gmap_draws_array(x, variable = variables)
+  if (posterior::ndraws(summary_draws) == 0L) {
+    return(.gmap_empty_draws_summary(
+      posterior::variables(summary_draws),
+      probs = probs,
+      row_names = row_names
+    ))
+  }
 
   if (!is.null(transform)) {
     summary_draws <- posterior::as_draws_matrix(
@@ -113,9 +237,19 @@
 #' Summarize sampler diagnostics from stored draws
 #'
 #' @keywords internal
-.gmap_sampler_summary <- function(x, variables = posterior::variables(x$draws)) {
+.gmap_sampler_summary <- function(x, variables = NULL) {
+  draws <- .gmap_draws_array(x, variable = variables)
+  if (posterior::ndraws(draws) == 0L) {
+    return(data.frame(
+      variable = posterior::variables(draws),
+      rhat = NA_real_,
+      ess_bulk = NA_real_,
+      ess_tail = NA_real_
+    ))
+  }
+
   out <- posterior::summarise_draws(
-    posterior::subset_draws(x$draws, variable = variables),
+    draws,
     posterior::rhat,
     posterior::ess_bulk,
     posterior::ess_tail

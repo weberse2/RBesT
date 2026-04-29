@@ -50,6 +50,11 @@
 #'
 #' @details
 #'
+#' Setting `chains = 0` runs the model setup without Stan sampling and returns
+#' a `gMAP` skeleton without posterior draws. This mode is intended for
+#' advanced workflows such as fixture construction where draws are injected
+#' later.
+#'
 #' The meta-analytic-predictive (MAP) approach derives a prior from
 #' historical data using a hierarchical model.  The statistical model is
 #' formulated as a generalized linear mixed model for binary, normal
@@ -402,6 +407,8 @@ gMAP <- function(
     print(family)
     stop("'family' not recognized")
   }
+
+  assert_integerish(chains, lower = 0, any.missing = FALSE, len = 1)
 
   if (missing(data)) {
     data <- environment(formula)
@@ -926,6 +933,98 @@ gMAP <- function(
   save_warmup <- getOption("RBesT.MC.save_warmup", FALSE)
   thin_input <- thin
 
+  build_gmap_output <- function(
+    draws,
+    draws_warmup,
+    draws_diag,
+    draws_warmup_diag,
+    metadata_mcmc,
+    beta,
+    tau,
+    Rhat.max,
+    thin,
+    backend
+  ) {
+    Out <- list(
+      theta.strat = theta.strat,
+      theta_resp.strat = theta_resp.strat,
+      theta.pooled = theta.pooled,
+      theta_resp.pooled = theta_resp.pooled,
+      n.tau.strata = n.tau.strata,
+      sigma_ref = sigma_ref,
+      tau.strata.pred = tau.strata.pred,
+      has_intercept = has_intercept,
+      tau = tau,
+      beta = beta,
+      REdist = REdist,
+      t.df = t.df,
+      X = X,
+      Rhat.max = Rhat.max,
+      thin = thin,
+      call = call,
+      family = family,
+      formula = f,
+      model = mf,
+      terms = mt,
+      xlevels = .getXlevels(mt, mf),
+      group.factor = group.factor,
+      tau.strata.factor = tau.strata.factor,
+      data = data,
+      log_offset = log_offset,
+      est_strat = est_strat,
+      draws = draws,
+      draws_warmup = draws_warmup,
+      draws_diag = draws_diag,
+      draws_warmup_diag = draws_warmup_diag,
+      metadata_mcmc = metadata_mcmc,
+      backend = backend,
+      ## keep the name present so `$fit` does not partially match `fit.data`;
+      ## use the stored posterior draws via the `as_draws*()` accessors instead
+      fit = NULL,
+      fit.data = dataL
+    )
+
+    structure(Out, class = c("gMAP"))
+  }
+
+  if (chains == 0) {
+    beta <- rep(NA_real_, ncol(X))
+    tau <- rep(NA_real_, n.tau.strata)
+
+    names(beta) <- colnames(X)
+    names(tau) <- paste0("tau", seq_len(n.tau.strata))
+
+    metadata_mcmc <- list(
+      iter = as.integer(iter),
+      warmup = as.integer(warmup),
+      warmup_saved = 0L,
+      chains = 0L,
+      n_save_per_chain = 0L,
+      post_warmup_saved = 0L,
+      thin_input = as.integer(thin_input),
+      thin_post = 1L,
+      save_warmup = FALSE
+    )
+
+    return(build_gmap_output(
+      draws = .gmap_empty_draws_array(
+        n_theta = nrow(theta_resp.strat),
+        n_beta = ncol(X),
+        n_tau = n.tau.strata,
+        has_intercept = has_intercept
+      ),
+      draws_warmup = NULL,
+      draws_diag = .gmap_empty_diag_draws_array(),
+      draws_warmup_diag = NULL,
+      metadata_mcmc = metadata_mcmc,
+      beta = beta,
+      tau = tau,
+      Rhat.max = NA_real_,
+      thin = 1L,
+      backend = "none"
+    ))
+  }
+
   ## MODEL RUN
   stan_msg <- capture.output(
     fit <- rstan::sampling(
@@ -1043,52 +1142,26 @@ gMAP <- function(
     ))
   }
 
-  Out <- list(
-    theta.strat = theta.strat,
-    theta_resp.strat = theta_resp.strat,
-    theta.pooled = theta.pooled,
-    theta_resp.pooled = theta_resp.pooled,
-    n.tau.strata = n.tau.strata,
-    sigma_ref = sigma_ref,
-    tau.strata.pred = tau.strata.pred,
-    has_intercept = has_intercept,
-    tau = tau,
-    beta = beta,
-    REdist = REdist,
-    t.df = t.df,
-    X = X,
-    Rhat.max = Rhat.max,
-    thin = thin,
-    call = call,
-    family = family,
-    formula = f,
-    model = mf,
-    terms = mt,
-    xlevels = .getXlevels(mt, mf),
-    group.factor = group.factor,
-    tau.strata.factor = tau.strata.factor,
-    data = data,
-    log_offset = log_offset,
-    est_strat = est_strat,
+  build_gmap_output(
     draws = draws,
     draws_warmup = draws_warmup,
     draws_diag = draws_diag,
     draws_warmup_diag = draws_warmup_diag,
     metadata_mcmc = metadata_mcmc,
-    backend = "rstan",
-    ## keep the name present so `$fit` does not partially match `fit.data`;
-    ## use the stored posterior draws via the `as_draws*()` accessors instead
-    fit = NULL,
-    fit.data = dataL
+    beta = beta,
+    tau = tau,
+    Rhat.max = Rhat.max,
+    thin = thin,
+    backend = "rstan"
   )
-
-  structure(Out, class = c("gMAP"))
 }
 
 
 #' @describeIn gMAP displays a summary of the gMAP analysis.
 #' @export
 print.gMAP <- function(x, digits = 3, probs = c(0.025, 0.5, 0.975), ...) {
+  .gmap_warn_no_samples(x, object_name = deparse(substitute(x)))
+
   cat("Generalized Meta Analytic Predictive Prior Analysis\n")
   cat(
     "\nCall:  ",
@@ -1164,12 +1237,12 @@ fitted.gMAP <- function(
   probs = c(0.025, 0.5, 0.975),
   ...
 ) {
+  .gmap_warn_no_samples(object, object_name = deparse(substitute(object)))
+
   type <- match.arg(type)
   res <- .gmap_summary(
     object,
-    variables = posterior::variables(
-      posterior::subset_draws(object$draws, variable = "theta")
-    ),
+    variables = "theta",
     probs = probs,
     transform = if (type == "response") object$family$linkinv else NULL,
     row_names = rownames(object$theta_resp.strat)
@@ -1183,22 +1256,31 @@ fitted.gMAP <- function(
 #' the response or the link scale.
 #' @export
 coef.gMAP <- function(object, probs = c(0.025, 0.5, 0.975), ...) {
+  .gmap_warn_no_samples(object, object_name = deparse(substitute(object)))
+
   .gmap_summary(
     object,
-    variables = posterior::variables(
-      posterior::subset_draws(object$draws, variable = "beta")
-    ),
+    variables = "beta",
     probs = probs,
     row_names = colnames(object$X)
   )
 }
 
-#' @describeIn gMAP extracts the posterior sample of the model.
+#' @describeIn gMAP `r lifecycle::badge("deprecated")`
+#' extracts the posterior sample of the model. Use
+#' [posterior::as_draws_matrix()] instead.
 #' @method as.matrix gMAP
 #' @export
 as.matrix.gMAP <- function(x, ...) {
+  lifecycle::deprecate_warn(
+    "1.10.0",
+    "as.matrix.gMAP()",
+    "posterior::as_draws_matrix()"
+  )
+  .gmap_warn_no_samples(x, object_name = deparse(substitute(x)))
+
   draws <- posterior::subset_draws(
-    x$draws,
+    .gmap_draws_array(x),
     variable = "lp__",
     exclude = TRUE
   )
@@ -1232,21 +1314,19 @@ summary.gMAP <- function(
   probs = c(0.025, 0.5, 0.975),
   ...
 ) {
+  .gmap_warn_no_samples(object, object_name = deparse(substitute(object)))
+
   call <- match.call()
   type <- match.arg(type)
   csum_beta <- .gmap_summary(
     object,
-    variables = posterior::variables(
-      posterior::subset_draws(object$draws, variable = "beta")
-    ),
+    variables = "beta",
     probs = probs,
     row_names = colnames(object$X)
   )
   csum_tau <- .gmap_summary(
     object,
-    variables = posterior::variables(
-      posterior::subset_draws(object$draws, variable = "tau")
-    ),
+    variables = "tau",
     probs = probs
   )
   if (object$has_intercept) {

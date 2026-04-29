@@ -110,9 +110,11 @@ mixfit.default <- function(
   )
   if (!missing(thin)) {
     assert_that(thin >= 1)
+    sub_ind <- seq_len(NROW(sample))
+    sub_ind <- sub_ind[(sub_ind - 1L) %% thin == 0L]
     sample <- asub(
       sample,
-      seq(1, NROW(sample), by = thin),
+      sub_ind,
       dims = 1,
       drop = FALSE
     )
@@ -130,6 +132,8 @@ mixfit.default <- function(
 #' sigma in [gMAP()] call.
 #' @export
 mixfit.gMAP <- function(sample, type, thin, ...) {
+  .gmap_warn_no_samples(sample, object_name = deparse(substitute(sample)))
+
   family <- sample$family$family
   ## automatically thin sample as estimated by gMAP function
   if (missing(thin)) {
@@ -144,13 +148,12 @@ mixfit.gMAP <- function(sample, type, thin, ...) {
     "unknown"
   )
   sim <- as.array(
-    posterior::subset_draws(
-      sample$draws,
-      variable = "theta_resp_pred",
-      scalar = TRUE
+    .gmap_thin_draws(
+      .gmap_draws_array(sample, variable = "theta_resp_pred"),
+      thin = thin
     )
   )
-  sim <- as.vector(sim[seq(1, dim(sim)[1], by = thin), , ])
+  sim <- as.vector(sim)
   mix <- mixfit.default(sim, type, thin = 1, ...)
   ## for the case of normal data, read out the estimated reference
   ## scale

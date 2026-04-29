@@ -21,6 +21,7 @@ R_TEST_OBJS = $(R_TEST_SRCS:.R=.Rtest)
 R_TESTFAST_OBJS = $(R_TEST_SRCS:.R=.Rtestfast)
 FIXTURE_SRCS = $(wildcard tests/testthat/fixtures-src/*_fixture.R)
 FIXTURE_OBJS = $(patsubst tests/testthat/fixtures-src/%_fixture.R,tests/testthat/fixtures/%.rds,$(FIXTURE_SRCS))
+COMPACT_FIXTURE_SRCS = $(wildcard tests/testthat/fixtures-compact/*_spec.R)
 RMD_SRCS = $(wildcard *.Rmd $(foreach fd, $(SRCDIR), $(fd)/x*.Rmd))
 STAN_SRCS = $(wildcard *.stan $(foreach fd, $(SRCDIR), $(fd)/*.stan))
 SRCS = $(R_PKG_SRCS) $(R_SRCS) $(RMD_SRCS) $(STAN_SRCS)
@@ -65,7 +66,7 @@ tests/testthat/fixtures/%.rds : tests/testthat/fixtures-src/%_fixture.R tools/bu
 	install -d $(@D)
 	NOT_CRAN=true $(RCMD) --slave --file=tools/build-test-fixture.R --args $< $@
 
-tests/%.Rtest : tests/%.R $(R_TEST_HELPER_SRCS) $(R_PKG_SRCS) NAMESPACE tools/run-test-file.R $(BIN_OBJS) $(FIXTURE_OBJS)
+tests/%.Rtest : tests/%.R $(R_TEST_HELPER_SRCS) $(COMPACT_FIXTURE_SRCS) $(R_PKG_SRCS) NAMESPACE tools/run-test-file.R $(BIN_OBJS) $(FIXTURE_OBJS)
 	@status=0; NOT_CRAN=true $(RCMD) --slave --file=tools/run-test-file.R --args $< > $@ 2>&1 || status=$$?; \
 	printf "Test summary for $(<F): "; \
 	grep '^\[' $@ | tail -n 1 || true; \
@@ -73,7 +74,7 @@ tests/%.Rtest : tests/%.R $(R_TEST_HELPER_SRCS) $(R_PKG_SRCS) NAMESPACE tools/ru
 
 # Fast/CRAN-like tests intentionally omit $(FIXTURE_OBJS); fixture-backed tests
 # should skip cleanly when the local cache is unavailable.
-tests/%.Rtestfast : tests/%.R $(R_TEST_HELPER_SRCS) $(R_PKG_SRCS) NAMESPACE tools/run-test-file.R $(BIN_OBJS)
+tests/%.Rtestfast : tests/%.R $(R_TEST_HELPER_SRCS) $(COMPACT_FIXTURE_SRCS) $(R_PKG_SRCS) NAMESPACE tools/run-test-file.R $(BIN_OBJS)
 	@status=0; NOT_CRAN=false $(RCMD) --slave --file=tools/run-test-file.R --args $< > $@ 2>&1 || status=$$?; \
 	printf "Test summary for $(<F): "; \
 	grep '^\[' $@ | tail -n 1 || true; \
