@@ -372,7 +372,7 @@ solve_boundary2S_normMix <- function(
 
   ## When sigma depends on the parameter (family path), the data
   ## becomes uninformative once sigma_fun1(m1)/sqrt(n1) exceeds the
-  ## prior component SD — the posterior then reverts to the prior and
+  ## prior component SD -- the posterior then reverts to the prior and
   ## expanding the search further is pointless. Compute a maximum
   ## half-width for lim1 so that the while-loop below for lim1
   ## expansion does not diverge.
@@ -439,7 +439,7 @@ solve_boundary2S_normMix <- function(
   ## Drop grid points where no boundary was found (crit is NA).
   ## The spline / approxfun covers only the range with real boundaries;
   ## extrapolation at the tails produces extreme values that give the
-  ## correct pnorm result (≈ 0 or 1).
+  ## correct pnorm result (~ 0 or 1).
   keep <- !is.na(crit)
   cbind(grid[keep], crit[keep])
 }
@@ -729,7 +729,7 @@ decision2S_boundary_normMix_atomic <- function(
       if (nrow(boundary_discrete) == 0) {
         ## No boundary found at any grid point: the decision is
         ## constant (never or always satisfied).  Return a function
-        ## that gives an extreme value so that pnorm returns ≈ 0.
+        ## that gives an extreme value so that pnorm returns ~ 0.
         lower.tail <- attr(decision, "lower.tail")
         const_val <- if (lower.tail) -1e100 else 1e100
         boundary <<- function(y2) rep(const_val, length(y2))
