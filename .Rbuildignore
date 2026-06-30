@@ -31,6 +31,8 @@ src/stan_files/.*\.hpp$
 ^pkgdown$
 ^README\.md$
 ^tools
+^design$
+^tests/testthat/fixtures-mcmc/.*[.]rds$
 ^public
 ^man/package-doc$
 ^src/package-binary$
@@ -40,3 +42,4 @@ src/stan_files/.*\.hpp$
 ^\.vscode$
 ^[.]?air[.]toml$
 ^\.lintr$
+^AGENTS\.md$

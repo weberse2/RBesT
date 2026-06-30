@@ -1,14 +1,88 @@
-.Rproj.user
+# R session and editor state
+.Rproj.user/
 .Rhistory
 .RData
 .Ruserdata
-docs
-src/
-*.*~
-inst/sbc/sbc*html
-.vscode/
-*.dll
+.Rprofile
 .Renviron
+.vscode/
+.DS_Store
+*.*~
+*~
+*.orig
+*.rej
+
+# Package build and check outputs
+/build/
+/src/
+/docs/
+/doc/
+/Meta/
+/RBesT/
+/test-fast/
+/utilsPkg_bin/
+/BesT
+*.Rcheck/
+*.tar.gz
+*.tgz
+
+# Generated package artifacts
+# /NAMESPACE
+# /R/stanmodels.R
+# /R/sysdata.rda
+# /man/*.Rd
+/man/package-doc
+# /inst/doc/RBesT.pdf
+/inst/include/beta_binomial.hpp
+/inst/stan/gMAP
+/inst/stan/gMAP.d
+/inst/stan/gMAP.hpp
+
+# Compiled objects and shared libraries
+*.dll
+*.dylib
+*.so
+*.o
+
+# Test output stamps and logs
 *.Rtest
 *.Rtestfast
-build/
+*.log
+
+# Coverage, pkgdown, and report artifacts
+/covr/
+/pkgdown/
+/public/
+/*_files/
+/design/*_files/
+/design/*.html
+/demo/*_files/
+/demo/*.html
+/vignettes/*_files/
+
+# Stan, brms, and sampling caches
+_brms-cache/
+.brms-cache/
+brms-cache/
+*.dSYM/
+
+# Expensive/generated local fixtures
+/tests/testthat/fixtures/*.rds
+/tests/testthat/fixtures-mcmc/*.rds
+/map_mcmc.rds
+/map_mcmc-compressed.rds
+
+# Local scratch artifacts
+/temp
+/test.txt
+/json.txt
+/json.gz
+/fix.R
+/fixmv.R
+/.lintr-old
+/Rplots.pdf
+/em*_diag*.pdf
+/em-mvn-fit-diagnostic-pairs.pdf
+
+# Generated SBC reports
+/inst/sbc/sbc*html

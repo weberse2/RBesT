@@ -13,3 +13,94 @@ template:
       <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" integrity="sha384-43gviWU0YVjaDtb/GhzOouOXtZMP/7XUzwPTstBeZFe/+rCMvRwr4yROQP43s0Xk" crossorigin="anonymous" onload="renderMathInElement(document.body);"></script>
 home:
 
+# Function reference grouped along the typical RBesT workflow as
+# illustrated in the "Getting started" (introduction) vignette:
+# derive a prior (MAP) -> approximate & tune it -> evaluate the design
+# -> analyse the trial. Lower-level building blocks and data follow.
+reference:
+  - title: Package overview
+    contents:
+      - RBesT-package
+
+  - title: Prior derivation (Meta-Analytic-Predictive analysis)
+    desc: >
+      Combine historical data into a Meta-Analytic-Predictive (MAP)
+      prior and inspect the model fit.
+    contents:
+      - gMAP
+      - predict.gMAP
+      - plot.gMAP
+      - forest_plot
+      - draws-RBesT
+      - nsamples
+
+  - title: Prior approximation
+    desc: >
+      Approximate MCMC samples (or any sample) by a parametric mixture
+      of conjugate distributions.
+    contents:
+      - mixfit
+      - automixfit
+      - plot.EM
+
+  - title: Effective sample size
+    desc: Quantify the informativeness of a (mixture) prior.
+    contents:
+      - ess
+
+  - title: Prior robustification
+    desc: Make a prior robust against prior-data conflict.
+    contents:
+      - robustify
+
+  - title: Design evaluation
+    desc: >
+      Define decision rules and evaluate operating characteristics and
+      the probability of success for 1- and 2-sample designs.
+    contents:
+      - decision1S
+      - decision2S
+      - decision1S_boundary
+      - decision2S_boundary
+      - oc1S
+      - oc2S
+      - pos1S
+      - pos2S
+
+  - title: Trial analysis
+    desc: >
+      Conjugate posterior updating and predictive distributions used to
+      analyse the actual trial outcome.
+    contents:
+      - postmix
+      - preddist
+
+  - title: Mixture distributions
+    desc: Construct, combine and evaluate mixture distributions.
+    contents:
+      - mixbeta
+      - mixgamma
+      - mixnorm
+      - mixmvnorm
+      - mixcombine
+      - mix
+      - mixdiff
+      - mixplot
+      - likelihood
+
+  - title: Interoperability and utilities
+    desc: Read/write mixtures, use them in brms, and helper functions.
+    contents:
+      - mixstanvar
+      - mixjson
+      - lodds
+      - BinaryExactCI
+
+  - title: Datasets
+    contents:
+      - AS
+      - asthma
+      - colitis
+      - crohn
+      - transplant
+
