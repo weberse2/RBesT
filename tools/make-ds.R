@@ -35,9 +35,46 @@ make_ds <- function() {
     y = c(-51, -49, -36, -47, -90, -54)
   )
 
+  asthma <<- data.frame(
+    study = paste0("Study_", 1:10),
+    NCT = c(
+      "ISRCTN75169762",
+      "NCT01000506",
+      "NCT01691521",
+      "NCT01287039",
+      "NCT01285323",
+      "NCT01238861",
+      "NCT01545440; NCT01545453",
+      "NCT01691508",
+      "NCT00292877",
+      "NCT01312961"
+    ),
+    d = c(0.96, 1.00, 0.62, 1.00, 1.00, 1.00, 1.00, 0.46, 0.50, 0.23),
+    n = c(32, 155, 191, 244, 232, 80, 66, 66, 11, 52),
+    mu_hat = c(3.73, 2.40, 1.75, 1.80, 2.11, 0.57, 0.88, 2.12, 1.99, 4.64),
+    log_mu_hat = c(1.32, 0.88, 0.56, 0.59, 0.75, -0.56, -0.13, 0.75, 0.69, 1.53),
+    se_log_mu_hat = c(0.18, 0.11, 0.11, 0.10, 0.13, 0.16, 0.28, 0.16, 0.31, 5.28),
+    kappa_hat = c(0.73, 0.80, 1.43, 1.97, 3.38, 1.61, 2.56, 0.67, 0.00, 1.13),
+    log_kappa_hat = c(-0.32, -0.22, 0.36, 0.68, 1.22, 0.48, 0.94, -0.39, -70.67, 0.12),
+    se_log_kappa_hat = c(0.38, 0.17, 0.22, 0.15, 0.14, 0.48, 0.51, 0.53, 41.44, 6.67),
+    phase = c(
+      "not phase III / early proof-of-concept",
+      "phase II",
+      "phase III",
+      "phase III",
+      "phase III",
+      "phase IIb",
+      "converted from phase III to phase IIb",
+      "phase III",
+      "not phase III / early proof-of-concept",
+      "phase II"
+    ),
+    stringsAsFactors = FALSE
+  )
+
   ## use_data expects it's data sets in the global env (which is why
   ## we do <<-)
-  use_data(AS, transplant, colitis, crohn, overwrite = TRUE)
+  use_data(AS, transplant, colitis, crohn, asthma, overwrite = TRUE)
 }
 
 

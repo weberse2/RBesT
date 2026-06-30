@@ -42,6 +42,17 @@ GIT_TAG ?= v$(PKG_VERSION)
 MD5 ?= md5sum
 TMPDIR := $(realpath $(shell mktemp -d))
 
+# When rendering vignettes/articles the recipes cd into the source
+# directory, where R no longer picks up the repo-root .Renviron that puts
+# the dev-installed RBesT on the library path. Point R_ENVIRON_USER at it,
+# but only if the caller has not already set it and the file exists.
+R_ENVIRON_PREFIX =
+ifndef R_ENVIRON_USER
+ifneq ($(wildcard $(CURDIR)/.Renviron),)
+R_ENVIRON_PREFIX = R_ENVIRON_USER=$(CURDIR)/.Renviron
+endif
+endif
+
 all : $(TARGET)
 
 ifneq ($(filter true TRUE 1 yes YES,$(FIXTURE_FORCE)),)
@@ -54,26 +65,26 @@ FORCE:
 # tell makefile how to turn a Rmd into an md file
 %.md : %.Rmd
 	cd $(@D); echo running $(RCMD) -e "rmarkdown::render('$(<F)', output_format=rmarkdown::md_document(variant='markdown'))"
-	cd $(@D); $(RCMD) -e "rmarkdown::render('$(<F)', output_format=rmarkdown::md_document(variant='markdown'))"
+	cd $(@D); $(R_ENVIRON_PREFIX) $(RCMD) -e "rmarkdown::render('$(<F)', output_format=rmarkdown::md_document(variant='markdown'))"
 
 %.md : %.R
 	cd $(@D); echo running $(RCMD) -e "rmarkdown::render('$(<F)', output_format=rmarkdown::md_document(variant='markdown'))"
-	cd $(@D); $(RCMD) -q -e "rmarkdown::render('$(<F)', output_format=rmarkdown::md_document(variant='markdown'))"
+	cd $(@D); $(R_ENVIRON_PREFIX) $(RCMD) -q -e "rmarkdown::render('$(<F)', output_format=rmarkdown::md_document(variant='markdown'))"
 
 # render an html via the respective md file
 %.html : %.md
 	cd $(@D); echo running $(RCMD) -e "rmarkdown::render('$(<F)', output_format=rmarkdown::html_document(self_contained=TRUE))"
-	cd $(@D); $(RCMD) -e "rmarkdown::render('$(<F)', output_format=rmarkdown::html_document(self_contained=TRUE))"
+	cd $(@D); $(R_ENVIRON_PREFIX) $(RCMD) -e "rmarkdown::render('$(<F)', output_format=rmarkdown::html_document(self_contained=TRUE))"
 
-tests/testthat/fixtures-mcmc/%.rds : tests/testthat/fixtures-mcmc-src/%_fixture.R tools/build-test-fixture.R $(BIN_OBJS) $(FIXTURE_FORCE_PREREQ)
+tests/testthat/fixtures-mcmc/%.rds : tests/testthat/fixtures-mcmc-src/%_fixture.R tools/build-test-fixture.R NAMESPACE $(BIN_OBJS) $(FIXTURE_FORCE_PREREQ)
 	install -d $(@D)
 	NOT_CRAN=true $(RCMD) --slave --file=tools/build-test-fixture.R --args $< $@
 
-tests/testthat/fixtures-compact/%_spec.R : tests/testthat/fixtures-compact-src/%_fixture.R tools/build-compact-gmap-fixture.R tools/compact-gmap-fixture-utils.R $(R_TEST_HELPER_SRCS) $(BIN_OBJS) $(FIXTURE_FORCE_PREREQ)
+tests/testthat/fixtures-compact/%_spec.R : tests/testthat/fixtures-compact-src/%_fixture.R tools/build-compact-gmap-fixture.R tools/compact-gmap-fixture-utils.R $(R_TEST_HELPER_SRCS) NAMESPACE $(BIN_OBJS) $(FIXTURE_FORCE_PREREQ)
 	install -d $(@D)
 	NOT_CRAN=true $(RCMD) --slave --file=tools/build-compact-gmap-fixture.R --args $< $(@D) $*
 
-tests/testthat/fixtures-compact/%.report : tests/testthat/fixtures-compact-src/%_fixture.R tests/testthat/fixtures-compact/%_spec.R tools/report-compact-gmap-fixtures.R tools/compact-gmap-fixture-utils.R $(R_TEST_HELPER_SRCS) $(BIN_OBJS)
+tests/testthat/fixtures-compact/%.report : tests/testthat/fixtures-compact-src/%_fixture.R tests/testthat/fixtures-compact/%_spec.R tools/report-compact-gmap-fixtures.R tools/compact-gmap-fixture-utils.R $(R_TEST_HELPER_SRCS) NAMESPACE $(BIN_OBJS)
 	install -d $(@D)
 	@status=0; NOT_CRAN=true $(RCMD) --slave --file=tools/report-compact-gmap-fixtures.R --args $< $@ > $@.log 2>&1 || status=$$?; \
 	cat $@.log; \
@@ -118,6 +129,13 @@ src/package-binary: R/stanmodels.R
 	touch src/package-binary
 
 man/package-doc: $(R_PKG_SRCS) $(BIN_OBJS)
+	## NOTE: On a clean tree (after `make clean` removes man/*.Rd) roxygen2
+	## 8.x cannot resolve intra-package [topic()] links because it reads the
+	## on-disk man/*.Rd topic database, which does not exist yet. This emits
+	## "Could not resolve link to topic ..." warnings for valid links such as
+	## [gMAP()] or [mixfit()]. The warnings are benign: the generated Rd is
+	## identical and a subsequent roxygenize (e.g. the next incremental build)
+	## resolves all links with no warnings.
 	"${R_HOME}/bin/Rscript" -e 'roxygen2::roxygenize()'
 	touch man/package-doc
 
@@ -271,6 +289,7 @@ check-winbuilder : check-winbuilder-devel check-winbuilder-release check-winbuil
 
 PHONY += clean
 clean: clean-fixtures
+	rm -rf _brms-cache/*
 	rm -rf build/*
 	rm -f man/*.Rd
 	rm -f NAMESPACE
@@ -301,6 +320,49 @@ echoes:
 	@echo "INC files: $(INCS)"
 	@echo "SRC files: $(SRCS)"
 	@echo "OBJ files: $(OBJS)"
+
+PHONY += help
+help:
+	@echo "RBesT package development targets"
+	@echo "=================================="
+	@echo ""
+	@echo "Build & install:"
+	@echo "  r-source              Build source package (fast, no vignettes)"
+	@echo "  r-source-release      Build release source package (with vignettes)"
+	@echo "  binary                Compile Stan models and shared library"
+	@echo "  derived               Generate NAMESPACE, binary, and docs"
+	@echo "  dev-install           Install from source into build/installed/"
+	@echo "  doc                   Generate Rd documentation"
+	@echo ""
+	@echo "Testing:"
+	@echo "  testfast-all          Run all tests in fast/CRAN-like mode"
+	@echo "  test-all              Run all tests with full fixtures"
+	@echo "  retestfast-all        Clean test output and re-run fast tests"
+	@echo "  retest-all            Clean test output and re-run full tests"
+	@echo "  tests/testthat/test-FOO.Rtestfast   Run single test file (fast)"
+	@echo "  tests/testthat/test-FOO.Rtest       Run single test file (full)"
+	@echo ""
+	@echo "Fixtures:"
+	@echo "  test-fixtures         Build MCMC fixture .rds files"
+	@echo "  compact-fixtures      Build compact fixture specs"
+	@echo "  compact-fixture-report  Report compact fixture quality"
+	@echo "  clean-fixtures        Remove fixture outputs and reports"
+	@echo ""
+	@echo "Checks:"
+	@echo "  r-source-check        R CMD check on source package"
+	@echo "  r-source-release-check  R CMD check on release package"
+	@echo "  check-winbuilder      Submit to winbuilder (devel+release+old)"
+	@echo ""
+	@echo "Documentation:"
+	@echo "  pkgdown               Build pkgdown site"
+	@echo ""
+	@echo "Housekeeping:"
+	@echo "  clean                 Remove all generated artifacts"
+	@echo "  clean-test            Remove test output files only"
+	@echo ""
+	@echo "Variables:"
+	@echo "  FIXTURE_FORCE=true    Force rebuild of fixtures"
+	@echo "  print-VARNAME         Print value of any Makefile variable"
 
 ##
 # Debug target that allows you to print a variable
