@@ -208,8 +208,8 @@ ess.betaMix <- function(
       )
     }
     elir <- integrate_density(
-      lir(mix, betaMixInfo, bernoulliFisherInfo_inverse),
-      mix
+      mix,
+      lir(mix, betaMixInfo, bernoulliFisherInfo_inverse)
     )
     if (elir < 0) {
       warning(
@@ -316,14 +316,14 @@ ess.gammaMix <- function(
   if (method == "elir") {
     if (lik == "poisson") {
       return(integrate_density(
-        lir(mix, gammaMixInfo, poissonFisherInfo_inverse),
-        mix
+        mix,
+        lir(mix, gammaMixInfo, poissonFisherInfo_inverse)
       ))
     }
     if (lik == "exp") {
       return(integrate_density(
-        lir(mix, gammaMixInfo, expFisherInfo_inverse),
-        mix
+        mix,
+        lir(mix, gammaMixInfo, expFisherInfo_inverse)
       ))
     }
   }
@@ -459,8 +459,8 @@ ess.normMix <- function(
 
   if (method == "elir") {
     elir <- integrate_density(
-      lir(mix, normMixInfo, normTransformedFisherInfo_inverse),
-      mix
+      mix,
+      lir(mix, normMixInfo, normTransformedFisherInfo_inverse)
     )
     if (is_gaussian_family) {
       ## in this case we have to account for the non-unity scale
@@ -477,7 +477,7 @@ ess.normMix <- function(
     if (is_gaussian_family && family$link == "identity") {
       expected_info <- 1
     } else {
-      expected_info <- integrate_density(normTransformedFisherInfo_inverse, mix)
+      expected_info <- integrate_density(mix, normTransformedFisherInfo_inverse)
     }
     if (is_gaussian_family) {
       expected_info <- tauSq * expected_info

@@ -42,3 +42,4 @@ src/stan_files/.*\.hpp$
 ^\.vscode$
 ^[.]?air[.]toml$
 ^\.lintr$
+^AGENTS\.md$

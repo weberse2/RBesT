@@ -74,7 +74,9 @@ test_pos2S <- function(prior1, prior2, ia_dist1, ia_dist2, n1, n2, dec, decU) {
   pos_mc <- mean(cpo_analytic(samp1, samp2))
   ## print(pos_mc)
   ## print(pos_analytic(ia_dist1, ia_dist2))
-  expect_true(all(abs(pos_mc - pos_analytic(ia_dist1, ia_dist2)) < pos2S_tolerance()))
+  expect_true(all(
+    abs(pos_mc - pos_analytic(ia_dist1, ia_dist2)) < pos2S_tolerance()
+  ))
   lower.tail <- attr(dec, "lower.tail")
   if (lower.tail) {
     ## cat("Also testing lower.tail=FALSE\n")
@@ -150,7 +152,9 @@ test_that("Normal PoS 2 sample function matches MC integration", {
     qcrit = sc$qcrit
   )
   pos_analytic <- pos2S(sc$prior1, sc$prior2, sc$n1, sc$n2, sc$dec)
-  expect_true(all(abs(pos_mc - pos_analytic(sc$ia1, sc$ia2)) < pos2S_tolerance()))
+  expect_true(all(
+    abs(pos_mc - pos_analytic(sc$ia1, sc$ia2)) < pos2S_tolerance()
+  ))
 })
 
 test_that("Binomial PoS 2 sample function matches MC integration of CPO", {
@@ -331,4 +335,53 @@ test_that("Mixed lower.tail usage works for Poisson PoS calculation", {
 
   expected_mixed <- result_lower - (1 - result_upper)
   expect_equal(result_mixed, expected_mixed, tolerance = 1e-4)
+})
+
+test_that("Negative binomial PoS 2 sample with family-based sigma works", {
+  ## Regression test: pos2S with a NB family (sigma determined by family
+
+  ## variance function) previously failed in solve_boundary2S_normMix
+  ## because postmix returned zero-row results for extreme eta values,
+  ## causing NA in the boundary search loop.
+  skip_on_cran()
+
+  nb_family <- MASS::negative.binomial(theta = 1 / 1.9)
+  lambda_ctrl <- 1.8
+  log_exposure <- log(1) # 1 year follow-up
+
+  ## sigma on the log-rate scale (used only for prior specification)
+  sigma_ctrl <- sqrt((1 + 1.9 * lambda_ctrl * 1) / (lambda_ctrl * 1))
+
+  prior_ctrl <- mixnorm(c(1, log(lambda_ctrl), 10), sigma = sigma_ctrl)
+  prior_treat <- mixnorm(c(1, log(lambda_ctrl), 10), sigma = sigma_ctrl)
+
+  ## Interim posteriors (as if 45 patients observed per arm)
+  se_ia <- sigma_ctrl / sqrt(45)
+  post_treat <- postmix(prior_treat, m = log(lambda_ctrl) - 0.3, se = se_ia)
+  post_ctrl <- postmix(prior_ctrl, m = log(lambda_ctrl) + 0.1, se = se_ia)
+
+  decision <- decision2S(0.975, 0, lower.tail = TRUE)
+
+  ## pos2S setup should not error
+  pos_fn <- pos2S(
+    post_treat,
+    post_ctrl,
+    n1 = 105,
+    n2 = 105,
+    decision = decision,
+    family = nb_family,
+    offset1 = log_exposure,
+    offset2 = log_exposure
+  )
+
+  ## Evaluating PoS should return a valid probability
+  pos_val <- pos_fn(post_treat, post_ctrl)
+  expect_number(
+    pos_val,
+    na.ok = FALSE,
+    lower = 0,
+    upper = 1,
+    finite = TRUE,
+    null.ok = FALSE
+  )
 })
