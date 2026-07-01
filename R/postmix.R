@@ -163,7 +163,9 @@ postmix.normMix <- function(priormix, data, n, m, se, ...) {
   ## data precision
   dataPrec <- 1 / se^2
   ## if se == Inf, then the data precision 0, and we can return the prior
-  if (dataPrec == 0) {
+  ## (use isTRUE so that a non-finite se, e.g. NA/NaN, falls through to the
+  ## regular update instead of erroring in the condition)
+  if (isTRUE(dataPrec == 0)) {
     return(priormix)
   }
   ## prior precision
