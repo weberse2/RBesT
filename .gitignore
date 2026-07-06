@@ -27,12 +27,12 @@
 *.tgz
 
 # Generated package artifacts
-# /NAMESPACE
-# /R/stanmodels.R
-# /R/sysdata.rda
-# /man/*.Rd
+/NAMESPACE
+/R/stanmodels.R
+/R/sysdata.rda
+/man/*.Rd
 /man/package-doc
-# /inst/doc/RBesT.pdf
+/inst/doc/RBesT.pdf
 /inst/include/beta_binomial.hpp
 /inst/stan/gMAP
 /inst/stan/gMAP.d

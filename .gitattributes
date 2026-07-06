@@ -1,2 +1,0 @@
-# ensure that the git hash gets substituted upon git archive
-tools/make-ds.R export-subst 
