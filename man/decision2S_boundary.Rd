@@ -20,7 +20,7 @@ decision2S_boundary(prior1, prior2, n1, n2, decision, ...)
   sigma1,
   sigma2,
   eps = 1e-06,
-  Ngrid = 10,
+  Ngrid = 5,
   family = NULL,
   offset1 = 0,
   offset2 = offset1,
@@ -172,9 +172,9 @@ futilityCrit(postmix(priorP, m = y1c - 1E-3, n = 10), postmix(priorT, m = -10, n
 
 }
 \seealso{
-Other design2S:
-\code{\link[=decision2S]{decision2S()}},
-\code{\link[=oc2S]{oc2S()}},
-\code{\link[=pos2S]{pos2S()}}
+Other design2S: 
+\code{\link{decision2S}()},
+\code{\link{oc2S}()},
+\code{\link{pos2S}()}
 }
 \concept{design2S}

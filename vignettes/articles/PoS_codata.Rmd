@@ -18,6 +18,8 @@ output:
     toc: true
   word_document:
     toc: true
+bibliography: REFERENCES.bib
+link-citations: true
 vignette: >
   %\VignetteIndexEntry{Probability of Success with Co-Data}
   %\VignetteEncoding{UTF-8}
@@ -48,7 +50,7 @@ increasingly complex data situations.
 
 # Introduction
 
-The co-data concept has been introduced in [1]. It differs from the
+The co-data concept has been introduced in [@neuenschwander2016]. It differs from the
 use of historical data in that the approach makes use of contemporary
 data. A meta-analytic-predictive (MAP) analysis assumes that
 historical data is known at the time-point of specyfing the analysis
@@ -63,7 +65,7 @@ example for a co-data scenario in drug development is the simultaneous
 execution of twin phase III trails for registriation. In such a
 setting, a futility analysis at an interim analysis may take
 historical and all contemporary data into account in a co-data
-approach. This example has been discussed in [1] using the probability
+approach. This example has been discussed in [@neuenschwander2016] using the probability
 of success (PoS) as metric to assess futility at an interim analysis
 and is discussed here in detail.
 
@@ -121,7 +123,7 @@ $\theta$ which will not be part of the trial analysis.
 
 # Example Data Scenario
 
-In the following the hypothetical example as in [1] is discussed. The
+In the following the hypothetical example as in [@neuenschwander2016] is discussed. The
 assumed endpoint is time-to-event, which is analyzed using the normal
 approximation of the log-rank statistic for comparing two
 groups. Under a 1:1 randomization the standard error of the log-hazard
@@ -583,10 +585,10 @@ interim_pos_B(interim_B_allcombined)
 
 In the preceeding sections we have used MAP and MAC equivalence
 already. The proof for the equivalence is presented reference in
-[2]. The formal deriavtion is shown at the end of this section
+[@schmidli2014]. The formal deriavtion is shown at the end of this section
 
 While MAP and MAC provide the exact same results, the difference is a
-sequential vs a joint analysis as (see also [2]):
+sequential vs a joint analysis as (see also [@schmidli2014]):
 
 1. MAP: Summarize historical information as MAP and then update the
    MAP with the trial result (MCMC, then `postmix`).
@@ -693,9 +695,7 @@ The equivalence holds under the use of the meta-analytic model.
 
 # References
 
-[1] Neuenschwander, B., Roychoudhury, S., & Schmidli, H. (2016). On the Use of Co-Data in Clinical Trials. Statistics in Biopharmaceutical Research, 8(3), 345-354. \doi{10.1080/19466315.2016.1174149}
-
-[2] 1. Schmidli H, Gsteiger S, Roychoudhury S, O'Hagan A, Spiegelhalter D, Neuenschwander B. Robust meta-analytic-predictive priors in clinical trials with historical control information. Biometrics. 2014;70(4):1023-1032. \doi{10.1111/biom.12242}
+<div id="refs"></div>
 
 # R Session Info
 

@@ -106,13 +106,13 @@ sigma(nm) <- 10
 ess(nm)
 }
 \seealso{
-Other mixdist:
+Other mixdist: 
 \code{\link{mix}},
-\code{\link[=mixbeta]{mixbeta()}},
-\code{\link[=mixcombine]{mixcombine()}},
-\code{\link[=mixgamma]{mixgamma()}},
+\code{\link{mixbeta}()},
+\code{\link{mixcombine}()},
+\code{\link{mixgamma}()},
 \code{\link{mixjson}},
-\code{\link[=mixmvnorm]{mixmvnorm()}},
+\code{\link{mixmvnorm}()},
 \code{\link{mixplot}}
 }
 \concept{mixdist}

@@ -31,8 +31,19 @@ jobs:
 
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
-          extra-packages: any::pkgdown, local::.
+          extra-packages: any::pkgdown, any::roxygen2, local::.
           needs: website
+
+      - name: Render examples with full default sampling for the website
+        # The shipped man-roxygen/example-start.R uses slim sampling so that
+        # examples run fast under CRAN checks. That slim sampling also degrades
+        # the plots/output rendered on the reference website. Swap in the
+        # full-sampling variant and regenerate the Rd (rd roclet only, so
+        # NAMESPACE/collate are left untouched) before building the site.
+        run: |
+          file.copy("man-roxygen/example-start-full.R", "man-roxygen/example-start.R", overwrite = TRUE)
+          roxygen2::roxygenize(roclets = "rd")
+        shell: Rscript {0}
 
       - name: Build site
         run: pkgdown::build_site_github_pages(new_process = FALSE, install = FALSE)

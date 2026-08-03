@@ -20,7 +20,7 @@ pos2S(prior1, prior2, n1, n2, decision, ...)
   sigma1,
   sigma2,
   eps = 1e-06,
-  Ngrid = 10,
+  Ngrid = 5,
   family = NULL,
   offset1 = 0,
   offset2 = offset1,
@@ -177,9 +177,9 @@ pos_final(postP_interim, postT_interim)
 
 }
 \seealso{
-Other design2S:
-\code{\link[=decision2S]{decision2S()}},
-\code{\link[=decision2S_boundary]{decision2S_boundary()}},
-\code{\link[=oc2S]{oc2S()}}
+Other design2S: 
+\code{\link{decision2S}()},
+\code{\link{decision2S_boundary}()},
+\code{\link{oc2S}()}
 }
 \concept{design2S}
