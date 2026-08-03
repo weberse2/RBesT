@@ -50,6 +50,18 @@ jobs:
           extra-packages: any::rcmdcheck
           needs: check
 
+      - name: Install pngquant (used to compress vignette figures during check)
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" == "Linux" ]; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends pngquant
+          elif [ "$RUNNER_OS" == "macOS" ]; then
+            brew install pngquant
+          elif [ "$RUNNER_OS" == "Windows" ]; then
+            choco install pngquant --no-progress --yes
+          fi
+
       - uses: r-lib/actions/check-r-package@v2
         with:
           upload-snapshots: true
