@@ -39,6 +39,16 @@
   articles cite the same file through the R Markdown `bibliography:`
   field, removing duplicated per-file reference lists.
 
+## Bugfixes
+
+* Fix the simulation based calibration (SBC) code under `inst/sbc`,
+  which was shipped broken in 1.10-0: the `gMAP` posterior storage
+  refactor removed the raw `rstan` `stanfit` `fit` slot, causing
+  `run_sbc_case` to fail with `no applicable method for '@' applied to
+  an object of class "NULL"`. The SBC helper `fit_rbest` now reads
+  sampler diagnostics and posterior draws from the stored `posterior`
+  draws objects instead of the removed `stanfit`.
+
 # RBesT 1.10-0 - June 30th, 2026
 
 ## Enhancements
