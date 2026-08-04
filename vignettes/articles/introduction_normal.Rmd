@@ -3,6 +3,10 @@ title: "RBesT for a Normal Endpoint"
 author: "Yue Li"
 date: "`r Sys.Date()`"
 output: rmarkdown::html_vignette
+bibliography: REFERENCES.bib
+link-citations: true
+nocite: |
+  @morita2008
 vignette: >
   %\VignetteIndexEntry{RBesT for a Normal Endpoint}
   %\VignetteEncoding{UTF-8}
@@ -20,7 +24,7 @@ The R Bayesian evidence synthesis Tools (RBesT) have been created to
 facilitate the use of historical information in clinical trials. Once
 relevant historical information has been identified, RBesT supports
 the derivation of informative priors via the Meta-Analytic-Predictive
-(MAP) approach [1], the evaluation of the trial's operating
+(MAP) approach [@neuenschwander2010], the evaluation of the trial's operating
 characteristics, and the data analysis with the actual trial data. RBesT
 has been developed for endpoints from a number of well known
 distributions. Here we consider an example for a normally distributed
@@ -31,7 +35,7 @@ response variable.
 
 ## Historical Data
 
-Let's look at the Crohn's disease example data [2] (data-set `crohn`
+Let's look at the Crohn's disease example data [@hueber2012] (data-set `crohn`
 in RBesT). The primary endpoint is the change from baseline in Crohn's
 Disease Activity Index (CDAI), which is assumed to be normally
 distributed. Note that for CDAI, an improved outcome corresponds to a
@@ -63,7 +67,7 @@ sampling standard deviation $\sigma$, the amount of borrowing from
 historical data depends on the ratio $\tau/\sigma$. A conservative
 choice for the prior on $\tau$ is a **`HalfNormal(0,`**
 $\sigma/2$**`)`** distribution. For the prior on the intercept we
-recommend a "unit-information" prior [3] which is set to a precision
+recommend a "unit-information" prior [@kass1995] which is set to a precision
 corresponding to a single observation and centered here at no change
 from baseline. Please refer to the help page **`?gMAP`** for detailed
 information. The **`set.seed`** function is used to make the results
@@ -128,7 +132,7 @@ round(ess(map, method = "moment"))
 
 ## Robustification of MAP Prior
 
-We recommend robustifying [5] the prior with the **`robustify`**
+We recommend robustifying [@schmidli2014] the prior with the **`robustify`**
 function, which protects against type-I error inflation in presence of
 prior-data conflict. For the normal case we strongly recommend
 explicitly choosing the mean of the robust component. We use $-50$
@@ -353,11 +357,7 @@ poc(post_act, post_pbo)
 
 ### References
 
-[1] Neuenschwander B et. al, _Clin Trials_. 2010; 7(1):5-18  
-[2] Hueber W. et. al, _Gut_, 2012, 61(12):1693-1700  
-[3] Kass RE, Wasserman L, _J Amer Statist Assoc_; 1995, 90(431):928-934.  
-[4] Morita S. et. al, _Biometrics_ 2008;64(2):595-602  
-[5] Schmidli H. et. al, _Biometrics_ 2014;70(4):1023-1032  
+<div id="refs"></div>
 
 ### R Session Info
 

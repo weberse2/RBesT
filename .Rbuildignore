@@ -17,6 +17,7 @@ src/stan_files/.*\.hpp$
 ^inst/sbc/calibration\.rds$
 ^inst/sbc/calibration_data\.rds$
 ^inst/sbc/sbc_report_full\.html$
+^demo/oc2S_interim_multiK\.R$
 ^air\.toml$
 ^\.Rd*$
 ^\.Rd*/*$
@@ -43,3 +44,4 @@ src/stan_files/.*\.hpp$
 ^[.]?air[.]toml$
 ^\.lintr$
 ^AGENTS\.md$
+^index\.html$

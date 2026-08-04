@@ -3,6 +3,8 @@ title: "Meta-Analytic-Predictive Priors for Variances"
 author: "Sebastian Weber"
 date: "`r Sys.Date()`"
 output: rmarkdown::html_vignette
+bibliography: REFERENCES.bib
+link-citations: true
 vignette: >
   %\VignetteIndexEntry{Meta-Analytic-Predictive Priors for Variances}
   %\VignetteEncoding{UTF-8}
@@ -24,7 +26,7 @@ library(bayesplot)
 ```
 
 Applying the meta-analytic-predictive (MAP) prior approach to
-historical data on variances has been suggested in [1]. The utility is
+historical data on variances has been suggested in @schmidli2017. The utility is
 a better informed planning of future trials which use a normal
 endpoint. For these reliable information on the sampling standard
 deviation is crucial for planning the trial.
@@ -46,7 +48,8 @@ data $y_j$.
 While this is not directly supported in `RBesT`, a normal
 approximation of the $\log$ transformed $\Gamma$ variate can be
 applied. When $\log$ transforming a $\Gamma(\alpha,\beta)$ variate
-it's moment and variance can analytically be shown to be (see [2], for
+it's moment and variance can analytically be shown to be (see the
+[Wikipedia article on the Gamma distribution](https://en.wikipedia.org/wiki/Gamma_distribution#Logarithmic_expectation_and_variance), for
 example)
 
 $$ E[\log(X)] = \psi(\alpha) - \log(\beta)$$
@@ -67,7 +70,7 @@ approximation accuracy and concludes that independent of the true
 $\sigma$ value for 10 observations the approxmation is useful and a
 very good one for more than 20 observations.
 
-In the following we reanalyze the main example of reference [1] which
+In the following we reanalyze the main example of @schmidli2017 which
 is shown in table 2:
 
 ```{r,results="asis",echo=FALSE}
@@ -98,14 +101,14 @@ kable(hdata, digits = 4)
 
 
 In order to run the MAP analysis a prior for the heterogeniety
-parameter $\tau$ and the intercept $\beta$ is needed. In reference [3]
+parameter $\tau$ and the intercept $\beta$ is needed. In @gelman2014
 it is demonstrated that the (approximate) sampling standard deviation
 of the $\log$ variance is $\sqrt{2}$. Thus, a
 `HalfNormal(0,sqrt(2)/2)` is a very conservative choice for the
 between-study heterogeniety parameter. A less conservative choice is
 `HalfNormal(0,sqrt(2)/4)`, which gives very similar results in this
 case. For the intercept $\beta$ a very wide prior is used with a
-standard deviation of $100$ which is in line with reference [1]:
+standard deviation of $100$ which is in line with @schmidli2017:
 
 ```{r}
 map_mc <- gMAP(cbind(logvar_mean, sqrt(logvar_var)) ~ 1 | study,
@@ -122,7 +125,7 @@ summary(map_mc)
 plot(map_mc)$forest_model
 ```
 
-In reference [1] the correct $\Gamma$ likelihood is used in contrast
+In @schmidli2017 the correct $\Gamma$ likelihood is used in contrast
 to the approximate normal approach above. Still, the results match
 very close, even for the outer quantiles.
 
@@ -309,9 +312,7 @@ with the transformation as used earlier in this vignette.
 
 ## References
 
-[1] Schmidli, H., et. al, Comp. Stat. and Data Analysis, 2017, 113:100-110  
-[2] https://en.wikipedia.org/wiki/Gamma_distribution#Logarithmic_expectation_and_variance  
-[3] Gelman A, et. al, Bayesian Data Analysis. Third edit., 2014., Chapter 4, p. 84  
+<div id="refs"></div>
 
 ## R Session Info
 

@@ -161,14 +161,12 @@ decCombIntermediate(postmix(flat_prior, m = log(1.2), n = 300))
 
 }
 \references{
-Neuenschwander B, Rouyrre N, Hollaender H, Zuber E,
-Branson M. A proof of concept phase II non-inferiority
-criterion. \emph{Stat. in Med.}. 2011, 30:1618-1627
+\insertRef{neuenschwander2011}{RBesT}
 }
 \seealso{
-Other design1S:
-\code{\link[=decision1S_boundary]{decision1S_boundary()}},
-\code{\link[=oc1S]{oc1S()}},
-\code{\link[=pos1S]{pos1S()}}
+Other design1S: 
+\code{\link{decision1S_boundary}()},
+\code{\link{oc1S}()},
+\code{\link{pos1S}()}
 }
 \concept{design1S}
