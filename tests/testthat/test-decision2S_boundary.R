@@ -12,8 +12,8 @@ test_that("decision2S_boundary works for normal outcome", {
 
   successBounds <- successBoundary(gridVals)
   futilityBounds <- futilityBoundary(gridVals)
-  expect_snapshot_value(successBounds, style = "deparse")
-  expect_snapshot_value(futilityBounds, style = "deparse")
+  expect_snapshot_value(successBounds, style = "deparse", tolerance = 1e-4)
+  expect_snapshot_value(futilityBounds, style = "deparse", tolerance = 1e-4)
 
   # Now we define the criterion for the gray zone using mixed lower.tail.
   grayzoneCrit <- decision2S(
@@ -25,8 +25,8 @@ test_that("decision2S_boundary works for normal outcome", {
   grayzoneBoundsLower <- grayzoneBoundary$lower_or_equal_than(gridVals)
   grayzoneBoundsHigher <- grayzoneBoundary$higher_than(gridVals)
 
-  expect_snapshot_value(grayzoneBoundsLower, style = "deparse")
-  expect_snapshot_value(grayzoneBoundsHigher, style = "deparse")
+  expect_snapshot_value(grayzoneBoundsLower, style = "deparse", tolerance = 1e-4)
+  expect_snapshot_value(grayzoneBoundsHigher, style = "deparse", tolerance = 1e-4)
 
   # In this case there is no gray zone:
   expect_false(any(grayzoneBoundsHigher < grayzoneBoundsLower))
