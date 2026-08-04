@@ -44,3 +44,4 @@ src/stan_files/.*\.hpp$
 ^[.]?air[.]toml$
 ^\.lintr$
 ^AGENTS\.md$
+^index\.html$
