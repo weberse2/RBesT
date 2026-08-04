@@ -7,6 +7,10 @@ output:
     toc: true
   html_vignette:
     toc: true
+bibliography: REFERENCES.bib
+link-citations: true
+nocite: |
+  @neuenschwander2010, @schmidli2014, @gsponer2014
 vignette: >
   %\VignetteIndexEntry{Interim Futility for Negative Binomial Endpoints}
   %\VignetteEncoding{UTF-8}
@@ -172,17 +176,12 @@ historical borrowing, the IA relies entirely on the accrued trial
 data. This would be a very early stop with rather imprecise estimates
 compared to a more common IA look at 50%. 
 
-As a simplifying assumption we treat the interim analysis as if it
-were based on 30% of the patients with complete follow-up. In practice
-the same information would come from more patients, many of them with
-only partial follow-up at the time of the interim look; their data can
-still be used through the use of an offset in the regression. This distinction is
-not merely cosmetic: for a recurrent-event endpoint the information is
-event-driven, so a given amount of *total* follow-up
-($N \times$ expected follow-up per patient) is worth slightly more when
-it comes from many patients observed for a short time than from fewer
-patients each observed to completion. The calculation here is thus
-somewhat simplfying the actual situation.
+The 30% of information at the IA corresponds to patients with complete
+and partial follow-up. Hence, patients with partial follow-up at the
+IA and will continue to be monitored past the IA until the final
+assessment. Despite this dependence structure, the resulting MLE
+estimates of each period (before and after IA) are independent of one
+another as shown in @Scharfstein1997 and @Muetze2018.
 
 The information fraction is defined as the ratio of the Fisher
 information for the treatment effect (log rate ratio) at the interim
@@ -344,7 +343,7 @@ borrowing (next section) sharpens exactly this.
 ## Historical data
 
 We use placebo-arm data from the phase III asthma trials in the
-`asthma` data set (Table 1 of Holzhauer, Wang & Schmidli, 2018):
+`asthma` data set (Table 1 of @holzhauer2018):
 
 ```{r hist-data}
 asthma_ph3 <- subset(asthma, phase == "phase III")
@@ -512,7 +511,7 @@ side compares apples to oranges.
 Comparing the two designs at a *shared* futility threshold mixes two
 effects: the different threshold behaviour of the two analyses in
 terms of operating charachersitics and the different information they
-carry. An alternative, as poroposed by Gallo, Mao & Shih (2014), fixes
+carry. An alternative, as poroposed by @gallo2014, fixes
 one (Frequentist) operating characteristic for both methods and reads
 off the others. A futility rule can be expressed equivalently on
 several one-to-one scales — a test statistic, the observed effect
@@ -808,7 +807,7 @@ under an assumed truth.
 
 For Normal-endpoint group-sequential Bayesian designs, the
 [gsbDesign](https://cran.r-project.org/package=gsbDesign) package
-(Gerber & Gsponer, 2016) provides a full analytic treatment of such
+[@gerber2016] provides a full analytic treatment of such
 operating characteristics via conjugate posterior updates. The
 `oc2S_interim()` helper used here follows the same numerical
 integration idea but works with the mixture-prior machinery in RBesT
@@ -878,7 +877,7 @@ would require using e.g.\ `brms` instead.
 
 - Overdispersion $\kappa$ is treated as fixed. A more thorough
   analysis would derive a MAP prior for $\kappa$ and integrate over
-  its posterior uncertainty (cf.\ Holzhauer et al., 2018; see the
+  its posterior uncertainty (cf. @holzhauer2018; see the
   [companion article on SSR](introduction_negbin_ia_ssr.html)).
 - The normal approximation on the log-rate scale assumes moderate to
   large event counts. For rare-event settings, exact likelihoods may
@@ -891,23 +890,8 @@ version of this article.
 
 ### References
 
-[1] Neuenschwander B. et al., *Clin Trials*. 2010; 7(1):5-18  
-[2] Holzhauer B., Wang C., Schmidli H. Evidence synthesis from
-    aggregate recurrent event data for clinical trial design and
-    analysis. *Statistics in Medicine*. 2018;37:867-882.  
-[3] Schmidli H. et al., *Biometrics* 2014;70(4):1023-1032  
-[4] Gerber F, Gsponer T (2016). "gsbDesign: An R Package for Evaluating
-    the Operating Characteristics of a Group Sequential Bayesian Design."
-    *Journal of Statistical Software*, **69**(11), 1–23.
-    doi: [10.18637/jss.v069.i11](https://doi.org/10.18637/jss.v069.i11).  
-[5] Gsponer T, Gerber F, Bornkamp B, Ohlssen D, Vandemeulebroecke M,
-    Schmidli H (2014). "A Practical Guide to Bayesian Group Sequential
-    Designs." *Pharmaceutical Statistics*, **13**(1), 71–80.
-    doi: [10.1002/pst.1593](https://doi.org/10.1002/pst.1593).  
-[6] Gallo P, Mao L, Shih VH (2014). "Alternative Views on Setting
-    Clinical Trial Futility Criteria." *Journal of Biopharmaceutical
-    Statistics*, **24**(5), 976–993.
-    doi: [10.1080/10543406.2014.932285](https://doi.org/10.1080/10543406.2014.932285).  
+<div id="refs"></div>
+
 
 ### R Session Info
 
@@ -924,7 +908,7 @@ options(.user_mc_options)
 The calibration above fixed the **power loss under the alternative** at
 2% and then compared the two methods on their futility stopping
 probability under the null. Because the futility scales are one-to-one
-for a fixed design (Gallo, Mao & Shih, 2014), we can equally read the
+for a fixed design [@gallo2014], we can equally read the
 trade-off the other way around: **fix the probability of killing a
 truly ineffective drug under the null** and compare the resulting power
 loss under the alternative. A sponsor who wants a guaranteed "kill

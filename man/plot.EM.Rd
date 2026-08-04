@@ -82,7 +82,7 @@ names(pl_all)
 
 }
 \seealso{
-Other EM:
-\code{\link[=mixfit]{mixfit()}}
+Other EM: 
+\code{\link{mixfit}()}
 }
 \concept{EM}

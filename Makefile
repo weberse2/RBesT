@@ -30,7 +30,8 @@ STAN_SRCS = $(wildcard *.stan $(foreach fd, $(SRCDIR), $(fd)/*.stan))
 SRCS = $(R_PKG_SRCS) $(R_SRCS) $(RMD_SRCS) $(STAN_SRCS)
 NODIR_SRC = $(notdir $(SRCS))
 BIN_OBJS = src/package-binary R/sysdata.rda
-DOC_OBJS = man/package-doc inst/doc/$(RPKG).pdf
+MANUAL_PDF = inst/doc/$(RPKG).pdf
+DOC_OBJS = man/package-doc $(MANUAL_PDF)
 # RCMD ?= R_PROFILE_USER="$(PROJROOT_ABS)/.Rprofile" "${R_HOME}/bin/R" -q
 RCMD ?= "${R_HOME}/bin/R" -q
 FIXTURE_FORCE ?= false
@@ -151,34 +152,65 @@ inst/sbc/calibration.rds :
 R/sysdata.rda: inst/sbc/calibration.rds
 	"${R_HOME}/bin/R" --slave --file=tools/make-ds.R
 
-inst/doc/$(RPKG).pdf : man/package-doc
+# The reference manual cites the central bibliography via the Rdpack
+# \insertRef{key}{RBesT} macro. At render time Rdpack resolves the key against
+# the *installed* RBesT (system.file("REFERENCES.bib", package = "RBesT")), so
+# the manual must be built against a dev-install that ships inst/REFERENCES.bib
+# -- otherwise the \references sections render empty. Depend on the dev-install
+# target and point R_LIBS_USER at it so \insertRef finds the bibliography.
+inst/doc/$(RPKG).pdf : man/package-doc build/installed/$(RPKG)/DESCRIPTION
 	install -d inst/doc
-	"${R_HOME}/bin/R" CMD Rd2pdf --batch --no-preview --force --output=inst/doc/$(RPKG).pdf .
+	R_LIBS_USER="$(CURDIR)/build/installed" "${R_HOME}/bin/R" CMD Rd2pdf --batch --no-preview --force --output=inst/doc/$(RPKG).pdf .
 	"${R_HOME}/bin/R" --vanilla --slave -e 'library(tools); tools::compactPDF("inst/doc/$(RPKG).pdf")'
 
 
 NAMESPACE: man/package-doc
 
 
+# The canonical bibliography lives in inst/REFERENCES.bib (read by Rdpack for
+# the Rd documentation via \insertRef). CRAN's "Writing R Extensions" requires
+# the vignette BibTeX file to reside inside the vignette source directory, so
+# generate vignettes/REFERENCES.bib from the canonical file. It is a derived
+# artifact (git-ignored, like man/*.Rd and NAMESPACE): edit inst/REFERENCES.bib
+# only and let the build keep the vignette copy in sync.
+vignettes/REFERENCES.bib : inst/REFERENCES.bib
+	@printf '%s\n' \
+	  '% DO NOT EDIT -- this file is auto-generated from inst/REFERENCES.bib.' \
+	  '% Edit inst/REFERENCES.bib (the canonical bibliography) instead and run' \
+	  '% make to regenerate this vignette copy. Any manual changes here will be' \
+	  '% overwritten by the build.' \
+	  '' > $@
+	cat $< >> $@
+
+
 PHONY := $(TARGET)
 $(TARGET): build/r-source-fast
 
-build/r-source-fast : $(BIN_OBJS) $(DOC_OBJS) $(SRCS)
+build/r-source-fast : $(BIN_OBJS) man/package-doc $(SRCS) DESCRIPTION vignettes/REFERENCES.bib
 	install -d build
 	git archive --format=tar.gz --prefix $(RPKG)-$(GIT_TAG)/ HEAD > build/$(RPKG)-$(GIT_TAG).tar.gz
 	rm -rf build/$(RPKG)-$(GIT_TAG)
 	cd build; tar x -C $(TMPDIR) -f $(RPKG)-$(GIT_TAG).tar.gz
 	rm -f build/$(RPKG)-$(GIT_TAG).tar.gz
 	cp -v NAMESPACE $(TMPDIR)/$(RPKG)-$(GIT_TAG)
+	## Overlay the working-tree DESCRIPTION so the built tarball reflects the
+	## current (possibly uncommitted) version -- PKG_VERSION is derived from the
+	## working-tree DESCRIPTION, so without this the tarball name built from the
+	## git-archived HEAD DESCRIPTION would diverge and the mv below would fail.
+	cp -v DESCRIPTION $(TMPDIR)/$(RPKG)-$(GIT_TAG)
 	install -d $(TMPDIR)/$(RPKG)-$(GIT_TAG)/man
 	cp -v man/*.Rd $(TMPDIR)/$(RPKG)-$(GIT_TAG)/man
+	install -d $(TMPDIR)/$(RPKG)-$(GIT_TAG)/inst
+	cp -v inst/REFERENCES.bib $(TMPDIR)/$(RPKG)-$(GIT_TAG)/inst
+	install -d $(TMPDIR)/$(RPKG)-$(GIT_TAG)/vignettes
+	cp -v vignettes/REFERENCES.bib $(TMPDIR)/$(RPKG)-$(GIT_TAG)/vignettes
 	cd $(TMPDIR)/$(RPKG)-$(GIT_TAG); "${R_HOME}/bin/R" --slave --file=tools/make-ds.R
 	cd $(TMPDIR); NOT_CRAN=false "${R_HOME}/bin/R" CMD build $(RPKG)-$(GIT_TAG) --no-build-vignettes --no-manual
 	rm -rf $(TMPDIR)/$(RPKG)-$(GIT_TAG)
 	mv $(TMPDIR)/$(RPKG)_$(PKG_VERSION).tar.gz build/$(RPKG)-source.tar.gz
 	touch build/r-source-fast
 
-build/r-source-release : $(BIN_OBJS) $(DOC_OBJS) $(SRCS) inst/sbc/sbc_report.html
+build/r-source-release : $(BIN_OBJS) $(DOC_OBJS) $(SRCS) DESCRIPTION vignettes/REFERENCES.bib inst/sbc/sbc_report.html
 	install -d build
 	git archive --format=tar.gz --prefix $(RPKG)-$(GIT_TAG)/ HEAD > build/$(RPKG)-$(GIT_TAG).tar.gz
 	rm -rf build/$(RPKG)-$(GIT_TAG)
@@ -186,7 +218,10 @@ build/r-source-release : $(BIN_OBJS) $(DOC_OBJS) $(SRCS) inst/sbc/sbc_report.htm
 	cp -v NAMESPACE build/$(RPKG)-$(GIT_TAG)
 	install -d build/$(RPKG)-$(GIT_TAG)/inst/doc
 	cp -v inst/doc/$(RPKG).pdf build/$(RPKG)-$(GIT_TAG)/inst/doc
+	cp -v inst/REFERENCES.bib build/$(RPKG)-$(GIT_TAG)/inst
 	cp -v inst/sbc/sbc_report.html build/$(RPKG)-$(GIT_TAG)/inst/sbc/sbc_report.html
+	install -d build/$(RPKG)-$(GIT_TAG)/vignettes
+	cp -v vignettes/REFERENCES.bib build/$(RPKG)-$(GIT_TAG)/vignettes
 	cd build/$(RPKG)-$(GIT_TAG); "${R_HOME}/bin/R" --slave --file=tools/make-ds.R
 	install -d build/$(RPKG)-$(GIT_TAG)/man
 	cp -v man/*.Rd build/$(RPKG)-$(GIT_TAG)/man
@@ -249,8 +284,19 @@ build/installed/$(RPKG)/DESCRIPTION : build/r-source-fast
 	install -d build/installed
 	cd build; $(RCMD) CMD INSTALL --library=./installed --no-docs --no-multiarch --no-test-load --no-clean-on-error $(RPKG)-source.tar.gz
 
-docs/index.html : doc $(SRCS)
-	NOT_CRAN=true $(RCMD) -e 'pkgdown::build_site()'
+docs/index.html : doc $(SRCS) vignettes/REFERENCES.bib
+	## Render the reference examples with the package default (full) sampling
+	## so the embedded website plots and output look appropriate. The shipped
+	## slim example template is temporarily replaced by the full-sampling
+	## variant, the Rd files are regenerated, the site is built, and finally
+	## the slim template and Rd are restored -- even if the build fails.
+	cp -f man-roxygen/example-start.R man-roxygen/example-start.R.slim.bak; \
+	cp -f man-roxygen/example-start-full.R man-roxygen/example-start.R; \
+	"${R_HOME}/bin/Rscript" -e 'roxygen2::roxygenize(roclets="rd")'; \
+	status=0; NOT_CRAN=true $(RCMD) -e 'pkgdown::build_site()' || status=$$?; \
+	mv -f man-roxygen/example-start.R.slim.bak man-roxygen/example-start.R; \
+	"${R_HOME}/bin/Rscript" -e 'roxygen2::roxygenize(roclets="rd")'; \
+	exit $$status
 
 PHONY += pkgdown
 pkgdown: docs/index.html
@@ -275,9 +321,12 @@ compact-fixture-report : $(COMPACT_FIXTURE_REPORT_OBJS)
 	@cat $(COMPACT_FIXTURE_REPORT_OBJS)
 
 PHONY += clean-fixtures
+# NOTE: the compact fixture *.report files are committed test-evidence and are
+# intentionally NOT removed here (nor by `clean`, which depends on this target).
+# Only `clean-all` removes them. The *.report.log files are transient build logs
+# (git-ignored) and are safe to remove on every clean.
 clean-fixtures:
 	rm -f $(FIXTURE_OBJS)
-	rm -f $(COMPACT_FIXTURE_REPORT_OBJS)
 	rm -f $(COMPACT_FIXTURE_REPORT_OBJS:%=%.log)
 
 PHONY += clean-test-fixtures
@@ -335,6 +384,13 @@ clean: clean-fixtures
 	rm -rf src
 	rm -f R/stanmodels.R
 
+PHONY += clean-all
+# Deep clean: everything `clean` removes, plus the committed compact fixture
+# *.report test-evidence files. Kept separate so day-to-day `clean` preserves
+# the reports.
+clean-all: clean
+	rm -f $(COMPACT_FIXTURE_REPORT_OBJS)
+
 clean-test:
 	rm -f $(R_TEST_OBJS)
 	rm -f $(R_TESTFAST_OBJS)
@@ -373,7 +429,7 @@ help:
 	@echo "  test-fixtures         Build MCMC fixture .rds files"
 	@echo "  compact-fixtures      Build compact fixture specs"
 	@echo "  compact-fixture-report  Report compact fixture quality"
-	@echo "  clean-fixtures        Remove fixture outputs and reports"
+	@echo "  clean-fixtures        Remove regenerable fixture outputs (keeps *.report)"
 	@echo ""
 	@echo "Checks:"
 	@echo "  r-source-check        R CMD check on source package"
@@ -386,7 +442,8 @@ help:
 	@echo "  pkgdown               Build pkgdown site"
 	@echo ""
 	@echo "Housekeeping:"
-	@echo "  clean                 Remove all generated artifacts"
+	@echo "  clean                 Remove all generated artifacts (keeps *.report)"
+	@echo "  clean-all             Remove all generated artifacts and *.report evidence"
 	@echo "  clean-test            Remove test output files only"
 	@echo ""
 	@echo "Variables:"
