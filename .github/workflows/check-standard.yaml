@@ -62,6 +62,23 @@ jobs:
             choco install pngquant --no-progress --yes
           fi
 
+      - name: Generate vignette bibliography from canonical inst/REFERENCES.bib
+        # CRAN requires the vignette BibTeX file inside the vignette source
+        # directory. vignettes/REFERENCES.bib is a derived, git-ignored copy of
+        # the canonical inst/REFERENCES.bib (normally produced by the Makefile);
+        # regenerate it here since CI does not run make before the check.
+        shell: bash
+        run: |
+          {
+            printf '%s\n' \
+              '% DO NOT EDIT -- this file is auto-generated from inst/REFERENCES.bib.' \
+              '% Edit inst/REFERENCES.bib (the canonical bibliography) instead and run' \
+              '% make to regenerate this vignette copy. Any manual changes here will be' \
+              '% overwritten by the build.' \
+              ''
+            cat inst/REFERENCES.bib
+          } > vignettes/REFERENCES.bib
+
       - uses: r-lib/actions/check-r-package@v2
         with:
           upload-snapshots: true
