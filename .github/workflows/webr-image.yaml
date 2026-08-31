@@ -1,0 +1,162 @@
+name: webR image
+
+# Build a WebAssembly binary of RBesT together with its dependency closure and
+# pack them into a mountable webR library image, then prove the image works by
+# running a real gMAP() fit inside webR under Node.
+#
+# See design/howto-build-rbest-webr.md for the background, the toolchain
+# constraint (the webR container is amd64-only, hence GitHub's runners), and
+# the troubleshooting notes.
+#
+# The primary trigger is manual: this repository's CI is GitLab, so this
+# workflow is expected to be dispatched by hand after mirroring the branch to
+# GitHub. On a published release the same image is additionally attached to
+# the release as an asset.
+
+on:
+  workflow_dispatch:
+    inputs:
+      webr-image:
+        description: webR development container image (pin it; `:main` moves)
+        default: ghcr.io/r-wasm/webr:v0.6.0
+        type: string
+      strip:
+        description: >-
+          Library subdirectories to drop from the image. `include` is
+          deliberately absent; see the how-to, section 7.
+        default: demo, doc, examples, help, html, tests, vignette
+        type: string
+  release:
+    types: [published]
+
+concurrency:
+  group: webr-image-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  WEBR_IMAGE: ${{ inputs.webr-image || 'ghcr.io/r-wasm/webr:v0.6.0' }}
+  # The npm `webr` version must match the container image used to build the
+  # library, otherwise the image is loaded by a different R.
+  WEBR_NPM_VERSION: 0.6.0
+
+jobs:
+  build:
+    name: Build wasm image
+    runs-on: ubuntu-24.04
+    # Cross-compiling the closure from source is slow; rstan alone is large.
+    timeout-minutes: 300
+
+    steps:
+      - name: Checkout RBesT
+        uses: actions/checkout@v4
+
+      # The webR development container carries the emscripten toolchain, a wasm
+      # R build and `rwasm`. It is amd64-only, which is precisely why this runs
+      # on a GitHub runner rather than a developer machine.
+      - name: Pull webR container
+        run: docker pull "$WEBR_IMAGE"
+
+      # NOTE: `r-wasm/actions/build-rwasm` is deliberately not used here. It
+      # calls `rwasm::add_pkg()` with the package defaults, and two of them are
+      # wrong for this package: `dependencies = FALSE` would build RBesT alone
+      # and yield an image with none of ggplot2/dplyr/posterior in it, and
+      # `remotes = NA` resolves rwasm's full `webr-remotes` list, which aborts
+      # pkgdepends on refs unrelated to RBesT. tools/webr/build-rwasm.R sets
+      # both explicitly; see the comments there.
+      - name: Build wasm packages and library image
+        run: |
+          docker run --rm \
+            -v "$PWD":/github/workspace \
+            -w /github/workspace \
+            -e RBEST_STRIP \
+            --entrypoint Rscript \
+            "$WEBR_IMAGE" tools/webr/build-rwasm.R
+        env:
+          RBEST_STRIP: ${{ inputs.strip || 'demo, doc, examples, help, html, tests, vignette' }}
+
+      # The container writes as root.
+      - name: Take ownership of build output
+        if: always()
+        run: sudo chown -R "$(id -u):$(id -g)" _rwasm || true
+
+      - name: Inspect build output
+        run: |
+          echo "::group::library image"
+          ls -l _rwasm/image
+          echo "::endgroup::"
+          echo "::group::wasm binaries"
+          find _rwasm/repo -name '*.tgz' -printf '%10s  %f\n' | sort -k2
+          echo "::endgroup::"
+
+      - name: Upload library image
+        uses: actions/upload-artifact@v4
+        with:
+          name: rbest-webr-image
+          path: _rwasm/image/
+          if-no-files-found: error
+
+      # Kept deliberately: this holds the RBesT wasm binary itself, which is
+      # what you unpack when the image builds but will not load.
+      - name: Upload wasm package repository
+        uses: actions/upload-artifact@v4
+        with:
+          name: rbest-wasm-repo
+          path: _rwasm/repo/
+          if-no-files-found: error
+
+  verify:
+    name: Verify image in webR
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout RBesT
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install webR
+        run: npm install --no-package-lock "webr@${WEBR_NPM_VERSION}"
+
+      - name: Download library image
+        uses: actions/download-artifact@v4
+        with:
+          name: rbest-webr-image
+          path: _rwasm/image
+
+      - name: Run a real gMAP fit against the image
+        run: |
+          metadata=$(ls _rwasm/image/*.js.metadata)
+          base="${metadata%.js.metadata}"
+          echo "Mounting image base: ${base}"
+          WEBR_VFS="${base}" node tools/webr/run-webr-vfs.cjs tools/webr/verify-rbest.R
+
+  release:
+    name: Attach image to release
+    needs: verify
+    if: github.event_name == 'release'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download library image
+        uses: actions/download-artifact@v4
+        with:
+          name: rbest-webr-image
+          path: _rwasm/image
+
+      - name: Upload image to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: _rwasm/image/*
+          file_glob: true
+          tag: ${{ github.ref }}
+          overwrite: true

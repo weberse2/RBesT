@@ -45,3 +45,6 @@ src/stan_files/.*\.hpp$
 ^\.lintr$
 ^AGENTS\.md$
 ^index\.html$
+^_rwasm
+^node_modules
+^package-lock\.json$

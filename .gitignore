@@ -86,3 +86,12 @@ brms-cache/
 
 # Generated SBC reports
 /inst/sbc/sbc*html
+
+# webR/wasm scoping harness (throwaway; see design/design-webr-gmap-backends.md)
+/design/wasm-build/
+/design/wasm-build-native/
+
+# webR/wasm build output (.github/workflows/webr-image.yaml)
+/_rwasm/
+/node_modules/
+/package-lock.json
