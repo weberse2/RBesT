@@ -76,6 +76,19 @@ options(pkg.sysreqs = FALSE)
 stopifnot(file.exists("DESCRIPTION"))
 desc <- as.list(read.dcf("DESCRIPTION")[1, ])
 
+## `rwasm::wasm_build()` substitutes `src/Makevars.webr` for `src/Makevars`
+## when cross-compiling a package for wasm, if present (and skips running
+## `./configure`, which would otherwise regenerate `src/Makevars` and undo
+## this). `src/Makevars` itself is never committed here -- it's entirely
+## generated at build time by `configure` -- so this override is kept out of
+## the package tree (and out of anything CRAN would see) and copied in only
+## for this build. See the override file for why it's needed.
+webr_makevars <- "tools/webr/rbest-Makevars.webr"
+if (file.exists(webr_makevars)) {
+  dir.create("src", showWarnings = FALSE)
+  file.copy(webr_makevars, "src/Makevars.webr", overwrite = TRUE)
+}
+
 ## `Config/Needs/wasm` carries the refs that must override normal resolution --
 ## for RBesT, the rstan 2.39 source tarballs from r-universe. `rwasm` does not
 ## read this field itself; it has to be spliced into the package list here.

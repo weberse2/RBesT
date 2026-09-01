@@ -1,0 +1,23 @@
+# wasm override for src/Makevars (see rwasm::wasm_build()'s Makevars.webr
+# lookup). Using this file also makes rwasm skip ./configure, which would
+# otherwise call rstantools::rstan_config() and regenerate src/Makevars from
+# scratch, undoing this override.
+#
+# `R CMD INSTALL` for a wasm build still runs the host's own Rscript to
+# evaluate these `$(shell ...)` calls (there is no other way to run R during
+# the build), so they see the *host* R library, not the wasm one.
+# StanHeaders' headers and flags are portable and fine to query this way, but
+# `RcppParallel::RcppParallelLibs()` returns linker flags for the host's
+# native libtbb.so/libtbbmalloc.so, which wasm-ld cannot link into a wasm
+# binary. The wasm build of RcppParallel does not use TBB at all (it falls
+# back to a header-only tinythread implementation), so the correct wasm
+# linker flags are simply none; drop that call from PKG_LIBS.
+
+STANHEADERS_SRC = $(shell "$(R_HOME)/bin$(R_ARCH_BIN)/Rscript" -e "message()" -e "cat(system.file('include', 'src', package = 'StanHeaders', mustWork = TRUE))" -e "message()" | grep "StanHeaders")
+
+STANC_FLAGS = $(shell "$(R_HOME)/bin$(R_ARCH_BIN)/Rscript" -e "cat(ifelse(utils::packageVersion('rstan') >= '2.26', '-DUSE_STANC3',''))")
+PKG_CPPFLAGS = -I"../inst/include" -I"$(STANHEADERS_SRC)" -DBOOST_DISABLE_ASSERTS -DEIGEN_NO_DEBUG -DBOOST_MATH_OVERFLOW_ERROR_POLICY=errno_on_error $(STANC_FLAGS) -D_HAS_AUTO_PTR_ETC=0
+PKG_CXXFLAGS = $(shell "$(R_HOME)/bin$(R_ARCH_BIN)/Rscript" -e "RcppParallel::CxxFlags()") $(shell "$(R_HOME)/bin$(R_ARCH_BIN)/Rscript" -e "StanHeaders:::CxxFlags()")
+PKG_LIBS = $(shell "$(R_HOME)/bin$(R_ARCH_BIN)/Rscript" -e "StanHeaders:::LdFlags()")
+
+CXX_STD = CXX17
