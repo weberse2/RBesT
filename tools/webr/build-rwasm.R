@@ -77,12 +77,29 @@ stopifnot(file.exists("DESCRIPTION"))
 desc <- as.list(read.dcf("DESCRIPTION")[1, ])
 
 ## `rwasm::wasm_build()` substitutes `src/Makevars.webr` for `src/Makevars`
-## when cross-compiling a package for wasm, if present (and skips running
-## `./configure`, which would otherwise regenerate `src/Makevars` and undo
-## this). `src/Makevars` itself is never committed here -- it's entirely
-## generated at build time by `configure` -- so this override is kept out of
-## the package tree (and out of anything CRAN would see) and copied in only
-## for this build. See the override file for why it's needed.
+## when cross-compiling a package for wasm, if present, and -- because it
+## can't tell our override apart from a hand-written `Makevars` -- also skips
+## running `./configure`, which would otherwise regenerate `src/Makevars` and
+## undo it. But `configure` (`rstantools::rstan_config()`) is not just about
+## Makevars: it is also what generates the Stan model C++ sources
+## (stanExports_*.cc/.h) and RBesT's RcppExports.cpp from `inst/stan/*.stan`
+## -- none of which is committed (see the Makefile's `R/stanmodels.R` target,
+## which does the same regeneration for local dev builds). Skipping
+## `configure` entirely would leave RBesT with no C++ sources to compile at
+## all; `R CMD INSTALL` treats that as trivially successful, silently
+## producing a package with no `RBesT.so`, which then fails to load.
+##
+## So run that regeneration here instead, before `local::.` is packaged, using
+## a host-native rstan/StanHeaders (needed to transpile `.stan` to C++, but
+## never linked into the wasm binary itself) resolved from the same repos as
+## the wasm build (including stan-dev r-universe, set above).
+message("== generating Stan model C++ sources (host-native rstan) ==")
+install.packages(c("rstantools", "StanHeaders", "rstan"))
+rstantools::rstan_config()
+
+## `src/Makevars` regenerated above still queries the host's native
+## RcppParallel for its TBB linker flags (see the override file for why that
+## breaks wasm-ld); apply the wasm override on top of it.
 webr_makevars <- "tools/webr/rbest-Makevars.webr"
 if (file.exists(webr_makevars)) {
   dir.create("src", showWarnings = FALSE)
