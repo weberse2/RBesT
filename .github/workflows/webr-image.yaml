@@ -14,6 +14,14 @@ name: webR image
 # the release as an asset.
 
 on:
+  # TEMPORARY, remove before merging. A `push` trigger runs workflows that are
+  # not on the default branch, which `workflow_dispatch` cannot do — see the
+  # how-to, section 3.2. It is here so the first wasm builds can be iterated on
+  # this branch without repointing anyone's default branch. Both dispatch
+  # inputs below have `||` fallbacks, so the defaults apply on a push.
+  push:
+    branches:
+      - issue-webr-gh-action
   workflow_dispatch:
     inputs:
       webr-image:
