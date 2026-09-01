@@ -47,8 +47,18 @@ strip_dirs <- split_env(
 ## The only webR-patched package that is, is mvtnorm, so name it explicitly.
 remotes <- split_env("RBEST_REMOTES", "r-wasm/mvtnorm@webr")
 
+## `rwasm::wasm_build()` installs each package's dependencies into the *host*
+## R library too (`pak::pkg_install("deps::<tarball>")`), separately from the
+## wasm-target graph `add_pkg()` resolves -- it needs a host-side StanHeaders
+## so rstan's configure/build scripts can find its headers. That call only
+## sees `getOption("repos")`, not `Config/Needs/wasm`'s pinned url:: refs, so
+## the stan-dev r-universe repo has to be listed here too, or it falls back to
+## CRAN's regular StanHeaders release, which is too old for rstan 2.39.
 options(
-  repos = c(CRAN = Sys.getenv("CRAN_MIRROR", "https://cloud.r-project.org")),
+  repos = c(
+    CRAN = Sys.getenv("CRAN_MIRROR", "https://cloud.r-project.org"),
+    stanverse = "https://stan-dev.r-universe.dev"
+  ),
   timeout = 1800
 )
 Sys.setenv(PKG_USE_BIOCONDUCTOR = "false")
