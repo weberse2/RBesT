@@ -54,6 +54,15 @@ options(
 Sys.setenv(PKG_USE_BIOCONDUCTOR = "false")
 options(pkg.use_bioconductor = FALSE)
 
+## pkgdepends auto-installs OS system requirements (e.g. `apt-get install`)
+## whenever it runs as root, which it does inside the webR container. wasm
+## builds cross-compile against the emscripten toolchain, not the host's
+## system libraries, so this is both unnecessary and liable to fail wherever
+## the container lacks apt-mirror network access. Disable it; system
+## requirements are still printed, just not installed.
+Sys.setenv(PKG_SYSREQS = "false")
+options(pkg.sysreqs = FALSE)
+
 stopifnot(file.exists("DESCRIPTION"))
 desc <- as.list(read.dcf("DESCRIPTION")[1, ])
 
