@@ -46,6 +46,7 @@ elapsed <- system.time(
     beta.prior = 2,
     chains = 2,
     iter = 2000,
+    warmup = 500,
     cores = 1
   )
 )
@@ -53,7 +54,9 @@ report("gMAP took", sprintf("%.1f s", elapsed[["elapsed"]]))
 
 print(map_mc)
 
-fit_summary <- summary(map_mc)$theta.pred
+## `summary()` returns a data.frame per quantity, and `is.finite()` has no
+## data.frame method, so reduce to a numeric matrix before testing.
+fit_summary <- as.matrix(summary(map_mc)$theta.pred)
 if (!all(is.finite(fit_summary))) {
   stop("gMAP posterior summary contains non-finite values")
 }
