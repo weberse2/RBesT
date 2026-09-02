@@ -83,11 +83,7 @@ VignetteBuilder: knitr
 SystemRequirements: GNU make, pandoc (>= 1.12.3), pngquant, C++17
 Encoding: UTF-8
 Config/testthat/edition: 3
-Config/Needs/wasm:
-    StanHeaders=url::https://stan-dev.r-universe.dev/src/contrib/StanHeaders_2.39.0.9000.tar.gz,
-    rstan=url::https://stan-dev.r-universe.dev/src/contrib/rstan_2.39.0.9000.tar.gz,
-    codetools=url::https://cran.r-project.org/src/contrib/codetools_0.2-20.tar.gz,
-    codetools=?source
 Roxygen: list(markdown = TRUE)
 Config/roxygen2/version: 8.1.0
 RdMacros: Rdpack
+RoxygenNote: 7.3.2

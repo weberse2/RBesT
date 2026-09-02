@@ -15,7 +15,9 @@
 ##   RBEST_IMAGE_NAME VFS image base name                (default rbest-library.data)
 ##   RBEST_STRIP      comma separated dirs to strip from the library
 ##   RBEST_REMOTES    comma separated webR-patched package refs
+##   RBEST_WASM_PKGS  package list  (default tools/webr/wasm-packages.dcf)
 ##   CRAN_MIRROR      CRAN mirror                        (default cloud.r-project.org)
+##   STAN_REPO        repo carrying rstan >= 2.36 (default stan-dev.r-universe.dev)
 ##
 ## This deliberately does *not* use `r-wasm/actions/build-rwasm`. That action
 ## calls `rwasm::add_pkg()` with the package defaults, and two of them are
@@ -47,18 +49,19 @@ strip_dirs <- split_env(
 ## The only webR-patched package that is, is mvtnorm, so name it explicitly.
 remotes <- split_env("RBEST_REMOTES", "r-wasm/mvtnorm@webr")
 
-## `rwasm::wasm_build()` installs each package's dependencies into the *host*
-## R library too (`pak::pkg_install("deps::<tarball>")`), separately from the
-## wasm-target graph `add_pkg()` resolves -- it needs a host-side StanHeaders
-## so rstan's configure/build scripts can find its headers. That call only
-## sees `getOption("repos")`, not `Config/Needs/wasm`'s pinned url:: refs, so
-## the stan-dev r-universe repo has to be listed here too, or it falls back to
-## CRAN's regular StanHeaders release, which is too old for rstan 2.39.
+## Resolution runs against CRAN *only*, deliberately. Adding a second
+## repository makes every package carried by both resolve twice -- pkgdepends
+## returns one candidate per repository and `rwasm:::update_repo()` builds
+## every row it is given, so bayesplot, loo, posterior, rstan, rstantools and
+## StanHeaders would each be cross-compiled twice. The packages that must come
+## from elsewhere get an explicit `url::` ref instead (see wasm-packages.dcf),
+## which resolves to exactly one candidate and outranks the CRAN version that
+## RBesT's `Imports` would otherwise pull in.
+cran_mirror <- Sys.getenv("CRAN_MIRROR", "https://cloud.r-project.org")
+stan_repo <- Sys.getenv("STAN_REPO", "https://stan-dev.r-universe.dev")
+
 options(
-  repos = c(
-    CRAN = Sys.getenv("CRAN_MIRROR", "https://cloud.r-project.org"),
-    stanverse = "https://stan-dev.r-universe.dev"
-  ),
+  repos = c(CRAN = cran_mirror),
   timeout = 1800
 )
 Sys.setenv(PKG_USE_BIOCONDUCTOR = "false")
@@ -74,23 +77,97 @@ Sys.setenv(PKG_SYSREQS = "false")
 options(pkg.sysreqs = FALSE)
 
 stopifnot(file.exists("DESCRIPTION"))
-desc <- as.list(read.dcf("DESCRIPTION")[1, ])
 
-## `Config/Needs/wasm` carries the refs that must override normal resolution --
-## for RBesT, the rstan 2.39 source tarballs from r-universe. `rwasm` does not
-## read this field itself; it has to be spliced into the package list here.
-extra <- if (!is.null(desc$`Config/Needs/wasm`)) {
-  refs <- strsplit(desc$`Config/Needs/wasm`, "[[:space:],]+")[[1]]
-  refs[nzchar(refs)]
-} else {
-  character(0)
+## Look `package` up in the PACKAGES index of each repository and return a
+## pinned `<pkg>=url::<contrib>/<pkg>_<version>.tar.gz` ref for the highest
+## version found anywhere. This is what removes the hardcoded versions: the
+## r-universe rebuilds rstan continuously and deletes the superseded tarball,
+## so a literal URL 404s within days. Taking the maximum across repositories
+## also means no edit is needed once CRAN ships an rstan new enough for the
+## wasm build -- CRAN simply starts winning the comparison.
+wasm_pkg_url <- function(package, repos) {
+  best <- NULL
+  for (repo in repos) {
+    db <- tryCatch(
+      available.packages(repos = repo, type = "source", filters = character()),
+      error = function(e) NULL
+    )
+    if (is.null(db) || !package %in% rownames(db)) {
+      next
+    }
+    rows <- db[rownames(db) == package, , drop = FALSE]
+    for (i in seq_len(nrow(rows))) {
+      ## Compare as a version, but keep the string for the URL: the tarball is
+      ## named with the literal `Version` field, and `package_version()`
+      ## normalises the dash in a Recommended package's version (codetools
+      ## 0.2-20 becomes 0.2.20), which would 404.
+      version <- rows[i, "Version"]
+      if (is.null(best) || package_version(version) > package_version(best$version)) {
+        best <- list(version = version, repo = sub("/+$", "", repo))
+      }
+    }
+  }
+  if (is.null(best)) {
+    stop(
+      "package '", package, "' is in none of the configured repositories: ",
+      paste(repos, collapse = ", ")
+    )
+  }
+  ## Built from the repository base rather than the index's `Repository`
+  ## column: on CRAN that column is the contrib directory, but r-universe
+  ## returns a complete per-package URL carrying a `?sha256=...` query, and
+  ## appending a filename to it yields a 404.
+  sprintf(
+    "%s=url::%s/src/contrib/%s_%s.tar.gz",
+    package,
+    best$repo,
+    package,
+    best$version
+  )
 }
 
-## All refs go into a *single* `add_pkg()` call so that pkgdepends resolves one
-## graph: the explicit `url::` refs then take precedence over the CRAN `rstan`
-## that RBesT's `Imports` would otherwise pull in. Resolving them separately
-## would give two different rstan versions in the same repository.
-##
+## Which packages need an explicit ref, and why, is declared in
+## `tools/webr/wasm-packages.dcf` -- deliberately not in `DESCRIPTION`, since
+## pkgdepends parses every `Config/Needs/*` field of its own accord whenever it
+## resolves `local::.`, which imposes rules (a `<pkg>=` prefix on every entry)
+## on a field that is not otherwise its business.
+pkg_list_file <- Sys.getenv("RBEST_WASM_PKGS", "tools/webr/wasm-packages.dcf")
+stopifnot(file.exists(pkg_list_file))
+pkg_list <- read.dcf(pkg_list_file)
+
+## Fields are collected across every DCF record, not just the first: the blank
+## lines that separate the commented blocks in wasm-packages.dcf also start a
+## new record, and keeping each field next to the comment explaining it is
+## worth more than packing them into one record.
+dcf_field <- function(name) {
+  if (!name %in% colnames(pkg_list)) {
+    return(character(0))
+  }
+  value <- pkg_list[, name]
+  value <- value[!is.na(value)]
+  value <- unlist(strsplit(value, "[[:space:],]+"))
+  value[nzchar(value)]
+}
+
+lookup_repos <- c(cran_mirror, stan_repo)
+pinned_ref <- function(name) wasm_pkg_url(name, lookup_repos)
+
+## Overrides for packages already in RBesT's dependency graph go to `remotes`,
+## which redirects the download source of a matching row. Adding them as direct
+## refs instead would give each of them a second row -- direct *and*
+## transitive -- and every row gets built.
+remotes <- c(
+  remotes,
+  vapply(dcf_field("Remote-Refs"), pinned_ref, character(1), USE.NAMES = FALSE)
+)
+
+## Packages that are not in the graph at all have to be direct refs; `remotes`
+## ignores names it does not match.
+extra <- c(
+  vapply(dcf_field("Source-Refs"), pinned_ref, character(1), USE.NAMES = FALSE),
+  dcf_field("Extra-Refs")
+)
+
 ## `dependencies = "hard"` rather than the `rwasm` default of `FALSE`, which
 ## would build RBesT alone and produce a library image with none of ggplot2,
 ## dplyr, posterior or bayesplot in it. Not `TRUE`, which additionally pulls
@@ -105,10 +182,33 @@ message("== packages ==")
 for (p in packages) message("  ", p)
 message("== remotes ==")
 for (r in remotes) message("  ", r)
+message("== host pre-install: ", paste(dcf_field("Host-Refs"), collapse = ", "), " ==")
 message("== strip: ", paste(strip_dirs, collapse = ", "), " ==")
 
 dir.create(repo_dir, recursive = TRUE, showWarnings = FALSE)
 dir.create(image_dir, recursive = TRUE, showWarnings = FALSE)
+
+## `rwasm:::wasm_build()` also installs each package's *host* dependencies, via
+## `pak::pkg_install("deps::<tarball>")`, so rstan's configure and build
+## scripts can find StanHeaders' headers. That call consults only
+## `getOption("repos")` -- which is CRAN-only here, and CRAN's StanHeaders is
+## too old for rstan 2.39. Install it from the same resolved URL the wasm build
+## uses, before that happens.
+host_refs <- dcf_field("Host-Refs")
+for (pkg in host_refs) {
+  url <- sub("^[^=]*=url::", "", wasm_pkg_url(pkg, lookup_repos))
+  installed <- tryCatch(packageVersion(pkg), error = function(e) NULL)
+  wanted <- package_version(sub("^.*_(.*)\\.tar\\.gz$", "\\1", url))
+  if (!is.null(installed) && installed >= wanted) {
+    message("  host ", pkg, " ", installed, " already satisfies ", wanted)
+    next
+  }
+  message("  installing host ", pkg, " ", wanted)
+  install.packages(url, repos = NULL, type = "source")
+  if (!requireNamespace(pkg, quietly = TRUE)) {
+    stop("host install of '", pkg, "' failed")
+  }
+}
 
 rwasm::add_pkg(
   packages,
