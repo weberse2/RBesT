@@ -187,8 +187,7 @@ test_that("the S2Z path activates exactly as specified", {
   ##
   ## The observable signature is the parameter layout itself, which the
   ## `chains = 0` model instance already carries: J - 1 free subspace
-  ## coordinates plus the recovery direction under s2z, against J group
-  ## effects and no recovery direction otherwise.
+  ## coordinates under s2z, against J group effects otherwise.
   scenarios <- s2z_test_scenarios()
 
   for (nm in names(scenarios)) {
@@ -201,13 +200,11 @@ test_that("the S2Z path activates exactly as specified", {
     cp <- s2z_constrained(nm, rep(0, n_up))
 
     n_re <- if (on) d$n_groups - 1L else d$n_groups
-    n_rec <- if (on) 1L else 0L
 
     expect_identical(length(cp$xi_eta), as.integer(n_re), info = nm)
-    expect_identical(length(cp$xi_abar), n_rec, info = nm)
     expect_identical(
       n_up,
-      as.integer(d$mX + d$n_tau_strata + n_re + n_rec),
+      as.integer(d$mX + d$n_tau_strata + n_re),
       info = nm
     )
 
@@ -226,11 +223,11 @@ test_that("the S2Z path activates exactly as specified", {
 test_that("the s2z identities hold for every parameter vector", {
   skip_on_cran()
 
-  ## The three structural invariants of design 3.2.1/3.2.2 in one sweep:
+  ## The structural invariants of design 3.2.1/3.2.2 that live in the *target*:
   ##
   ##   1'(Q xi) = 0                                  (zero-sum subspace)
-  ##   theta = X beta[alpha] + (Q xi)[group]         (theta reconstruction)
-  ##   beta[1] = alpha - r (r (alpha - m1) + s1 zeta)  (intercept recovery)
+  ##   theta = X beta_param + (Q xi)[group]          (theta reconstruction)
+  ##   beta_param[1] = alpha                         (sampled intercept)
   ##
   ## None of these is a statement about the posterior -- they hold for any
   ## parameter vector -- so they are checked deterministically through
@@ -238,23 +235,23 @@ test_that("the s2z identities hold for every parameter vector", {
   ## magnitude. That is both exact and sharper than sampled draws, which never
   ## visit the extremes where a wrong widening or a rescaled basis shows up.
   ##
-  ## Note that this re-implements the recovery formula and so can only detect
-  ## a change to it, never a wrong derivation: `abar` deliberately does not
-  ## enter the target, which also makes it invisible to the log_prob check.
-  ## The prior-marginal test below is the assertion with teeth there.
+  ## The recovery of the common shift is *not* checked here: it is an RNG draw
+  ## in `generated quantities`, which `constrain_pars()` does not run. That is
+  ## by design -- see design/design-s2z-gq-recovery.md -- and it is precisely
+  ## what guarantees that the fit cannot interfere with it. The recovery is
+  ## held to its closed form by the prior-marginal test below, which is the
+  ## assertion with teeth in any case.
   scenarios <- s2z_test_scenarios()
   on_names <- names(scenarios)[vapply(scenarios, function(s) s$s2z, logical(1))]
 
   for (nm in on_names) {
     d <- s2z_test_skeleton(nm)$fit.data
     J <- d$n_groups
-    m1 <- d$beta_prior[1, 1]
-    s1 <- d$beta_prior[1, 2]
 
     for (upars in s2z_upars_grid(nm)) {
       cp <- s2z_constrained(nm, upars)
 
-      beta <- as.numeric(cp$beta)
+      beta_param <- as.numeric(cp$beta_param)
       theta <- as.numeric(cp$theta)
       tau1 <- as.numeric(cp$tau)[1]
       alpha <- s2z_alpha(d, as.numeric(cp$beta_raw)[1])
@@ -262,24 +259,19 @@ test_that("the s2z identities hold for every parameter vector", {
 
       ## a relative bound: tau ranges over orders of magnitude here, so an
       ## absolute one would be a statement about the scenario, not the algebra
-      scale <- max(1, abs(alpha), tau1, max(abs(theta)), max(abs(beta)))
+      scale <- max(1, abs(alpha), tau1, max(abs(theta)), max(abs(beta_param)))
       tol <- 1e-10 * scale
       lbl <- paste0(nm, " (tau = ", signif(tau1, 3), ")")
 
       ## 1'(Q xi) = 0 to machine precision
       expect_lt(abs(sum(re)), tol, label = lbl)
 
-      ## beta[1] is the recovered super-population intercept; theta is built
-      ## from the sampled intercept alpha instead
-      beta_alpha <- beta
-      beta_alpha[1] <- alpha
-      theta_hat <- as.numeric(d$X %*% beta_alpha) + re[d$group_index]
-      expect_lt(max(abs(theta - theta_hat)), tol, label = lbl)
+      ## the sampled intercept is the widened one; the data see alpha, not the
+      ## super-population intercept
+      expect_lt(abs(beta_param[1] - alpha), tol, label = lbl)
 
-      ## the closed form of the recovered intercept
-      r <- s2z_recovery(s1, tau1, J)$r
-      abar <- r * (r * (alpha - m1) + s1 * as.numeric(cp$xi_abar))
-      expect_lt(abs(beta[1] - (alpha - abar)), tol, label = lbl)
+      theta_hat <- as.numeric(d$X %*% beta_param) + re[d$group_index]
+      expect_lt(max(abs(theta - theta_hat)), tol, label = lbl)
 
       ## J = 1: the free coordinate vector has length 0 and the random effect
       ## is entirely absorbed, so Stan must handle vector[0] and matrix[1,0]
@@ -323,17 +315,18 @@ test_that("the Stan s2z target matches an independent implementation", {
   }
 })
 
-test_that("the draws skeleton keeps the legacy variable layout", {
+test_that("the draws skeleton keeps the reported variable layout", {
   skip_on_cran()
 
-  ## This is the legacy variable set, order and dimension. S2Z keeps beta in
-  ## transformed parameters precisely so that this stays true; only lp__
-  ## changes value (not position). The sampled counterpart is asserted in the
-  ## summaries test below.
-  legacy <- c(
+  ## The reported variable set, order and dimension. `beta` is a generated
+  ## quantity (the s2z intercept recovery is an RNG draw), so it follows `tau`
+  ## in the Stan output; see design/design-s2z-gq-recovery.md. The layout is
+  ## the same whether or not s2z is active, and the sampled counterpart is
+  ## asserted in the summaries test below.
+  reported <- c(
     paste0("theta[", 1:8, "]"),
-    "beta[1]",
     "tau[1]",
+    "beta[1]",
     "theta_pred",
     "theta_resp_pred",
     "lp__"
@@ -341,12 +334,12 @@ test_that("the draws skeleton keeps the legacy variable layout", {
 
   expect_identical(
     posterior::variables(s2z_test_skeleton("binomial_ncp")$draws),
-    legacy
+    reported
   )
   ## and opting out must not move anything
   expect_identical(
     posterior::variables(s2z_test_skeleton("optout")$draws),
-    legacy
+    reported
   )
 })
 
@@ -418,47 +411,12 @@ test_that("the S2Z option is validated", {
 ## 3. Distributional assertions (cached MCMC fixtures)
 ## ---------------------------------------------------------------------------
 
-test_that("the recovery direction zeta stays exactly standard normal", {
-  ## zeta enters no density statement other than its own std_normal() prior,
-  ## and beta[1] enters neither the likelihood nor any prior. The posterior
-  ## therefore factorises and zeta must be an exact N(0,1) draw. This is the
-  ## cheapest detector for beta[1] leaking back into the target, e.g. by
-  ## re-adding a vectorised `beta ~ normal(...)` under s2z.
-  ##
-  ## The claim is scenario-independent by construction, so it is checked on
-  ## both parametrizations and on a second endpoint rather than on every
-  ## scenario in the table.
-  for (nm in c("zeta_binomial_ncp", "zeta_binomial_cp", "zeta_normal_ncp")) {
-    fit <- s2z_fixture_fit(nm)
-    expect_true(s2z_active(fit), info = nm)
-
-    zeta_draws <- posterior::subset_draws(fit$draws, variable = "xi_abar[1]")
-    zeta <- as.numeric(zeta_draws)
-
-    ## distribution: the actual correctness detector, sharp but not flaky
-    expect_gt(
-      suppressWarnings(stats::ks.test(zeta, "pnorm")$p.value),
-      1e-3,
-      label = nm
-    )
-    expect_equal(mean(zeta), 0, tolerance = 0.1, info = nm)
-    expect_equal(stats::sd(zeta), 1, tolerance = 0.1, info = nm)
-
-    ## efficiency: zeta is independent in the target but shares a step size
-    ## and mass matrix with the rest, so it can sit somewhat below N. The band
-    ## is deliberately loose: a genuine leak of beta[1] into the target would
-    ## collapse this far below 0.5, while the sharp detectors above are the KS
-    ## and moment checks.
-    ess_rel <- posterior::ess_bulk(zeta_draws) / length(zeta)
-    expect_gt(ess_rel, 0.5, label = nm)
-  }
-})
-
 test_that("the recovered intercept has exactly its prior marginal", {
-  ## The deterministic identity test above re-implements the recovery formula
-  ## and so can only detect a change to it, never a wrong derivation. This is
-  ## the assertion with teeth. Under prior_PD the intercept marginal is known
-  ## in closed form whatever tau does,
+  ## The recovery happens with an RNG draw in `generated quantities`, so it is
+  ## invisible to both the log_prob check and the deterministic identity test
+  ## above. This is therefore *the* assertion on it, and the one with teeth
+  ## anyway. Under prior_PD the intercept marginal is known in closed form
+  ## whatever tau does,
   ##
   ##   beta[1] ~ Normal(m1, s1),
   ##
@@ -494,22 +452,24 @@ test_that("the recovered intercept has exactly its prior marginal", {
   )
 })
 
-test_that("neither xi_abar nor the raw parameters pollute the summaries", {
-  ## verbose fits keep xi_abar and the raw parameters in the draws; the
-  ## downstream selectors match base names and must not pick them up
-  fit <- s2z_fixture_fit("zeta_binomial_ncp")
-  expect_true("xi_abar[1]" %in% posterior::variables(fit$draws))
+test_that("neither beta_param nor the raw parameters pollute the summaries", {
+  ## verbose fits keep the sampled parameters in the draws, among them
+  ## `beta_param`, whose first entry is the s2z intercept alpha rather than the
+  ## reported super-population intercept. The downstream selectors match base
+  ## names and must not pick it up as `beta`.
+  fit <- s2z_fixture_fit("verbose_binomial_ncp")
+  expect_true("beta_param[1]" %in% posterior::variables(fit$draws))
 
-  ## the sampled layout, once the raw parameters are dropped, is the legacy
-  ## one -- i.e. exactly what a non-verbose fit and the draw-free skeleton
-  ## report
+  ## the sampled layout, once the sampled parameters are dropped, is the
+  ## reported one -- i.e. exactly what a non-verbose fit and the draw-free
+  ## skeleton report
   expect_identical(
     s2z_reported_variables(fit),
     posterior::variables(s2z_test_skeleton("binomial_ncp")$draws)
   )
 
   s <- summary(fit)
-  ## the legacy contract: beta rows are the design matrix columns, `theta` is
+  ## the reporting contract: beta rows are the design matrix columns, `theta` is
   ## the one-row super-population mean and `tau` carries no tau_raw
   expect_identical(rownames(s$beta), colnames(fit$X))
   expect_identical(rownames(s$tau), "tau[1]")

@@ -676,15 +676,7 @@ gMAP <- function(
   mX <- NCOL(X)
 
   if (missing(beta.prior)) {
-    if (family$family == "gaussian") {
-      beta.prior <- c(1e2 * tau_guess)
-    }
-    if (family$family == "poisson") {
-      beta.prior <- log(1e2) + tau_guess
-    }
-    if (family$family == "binomial") {
-      beta.prior <- c(2)
-    }
+    beta.prior <- .gmap_default_beta_prior(family$family, tau_guess)
     message(paste(
       "Assuming default prior dispersion for beta:",
       paste(beta.prior, collapse = ", ")
@@ -800,38 +792,64 @@ gMAP <- function(
 
   link <- switch(family$family, gaussian = 1, binomial = 2, poisson = 3)
 
-  ## Model parametrization
-  ## 0 = Use CP
-  ## 1 = Use NCP
-  ## 2 = Automatically detect which param to take
-  ncp <- getOption("RBesT.MC.ncp", 1)
+  ## Stan model parametrization: 0 = CP, 1 = NCP, 2 = automatic NCP or
+  ## CP, 3 = automatic partial centering.
+  ncp <- getOption("RBesT.MC.ncp", 3)
 
-  assert_number(ncp, lower = 0, upper = 2)
+  assert_integerish(ncp, lower = 0, upper = 3, any.missing = FALSE, len = 1)
+  ncp <- as.integer(ncp)
 
   ## Sum-to-zero reparametrization of the group random effects. On by
-  ## default; setting the option to FALSE recovers the legacy sampling
-  ## scheme (and with it the legacy adapt_delta, see below). The two
-  ## parametrizations describe the same model.
+  ## default; setting the option to FALSE recovers the pre-1.12
+  ## sampling scheme (and with it the legacy adapt_delta, see
+  ## below). The two parametrizations describe the same model.
   use_s2z <- getOption("RBesT.MC.s2z", TRUE)
 
   assert_flag(use_s2z)
 
-  ## automatically detect if we have a sparse or rich data situation
-  ## (very experimental detection, default is to use NCP)
-  if (ncp == 2) {
-    ncp <- 1
-    ## we only have a tau_guess for H>1, then we set the CP
-    ## parametrization whenever on average of the standard error is
-    ## much smaller than the guessed tau in which case each group
-    ## is estimated with high precision from the data in
-    ## comparison to the between-group variation
-    if (H > 1 & sqrt(tau_guess^2 / max(theta_resp.strat[, "se"]^2)) > 20) {
-      ncp <- 0
-    }
+  assert_logical(prior_PD, FALSE, len = 1)
+
+  group.stratum <- rep(tau.strata.pred, n.groups)
+  for (i in seq_len(H)) {
+    group.stratum[group.index[i]] <- tau.strata.index[i]
   }
 
-  ## calculate very roughly the scale of tau and mu; tau is
-  ## calculated on the log-scale
+  ## Resolve the quadrature approximation once. Its outputs drive the
+  ## tau/beta/group sampler-scaling data below and both automatic
+  ## centering policies (RBesT.MC.ncp 2 and 3); no output re-runs the
+  ## tensor-product quadrature independently (see
+  ## design/design-gmap-quadrature-initialization.md).
+  quadrature <- .gmap_quadrature_approximation(
+    family = family$family,
+    y = y,
+    y.se = y_se,
+    r = r,
+    n = r_n,
+    count = count,
+    log.offset = log_offset,
+    X = X,
+    beta.prior = beta.prior,
+    group.index = group.index,
+    group.stratum = group.stratum,
+    tau.dist = tau.dist,
+    tau.prior = tau.prior,
+    prior_PD = prior_PD,
+    t.df = if (REdist == "t") t.df else Inf
+  )
+  if (!quadrature$ok) {
+    warning(
+      "Quadrature-based initialization failed (",
+      quadrature$reason,
+      "); using heuristic sampler-scaling estimates and the non-centered Stan model parametrization for any automatic centering policy."
+    )
+  }
+
+  ## Heuristic sampler-scaling estimates. These remain the fallback whenever the
+  ## quadrature approximation above is unavailable (prior-predictive fits,
+  ## a fixed tau, more than three active strata, an under-identified
+  ## stratum, or a non-positive-definite quadrature node), and are always
+  ## computed since fit.pooled/sigma_guess/tau_guess already exist for the
+  ## default beta.prior above.
 
   ## approximate maximal sample size we may get
   nInf <- 0.9 * (sigma_guess / tau_guess)^2
@@ -848,20 +866,99 @@ gMAP <- function(
       2 * tau_guess^2 / (n.groups - 1)
     )
     ms[2] <- sqrt(1 + 2 / (n.groups - 1)) * ms[2]
-    tau_raw_guess <- c(
+    heuristic_tau_raw_guess <- c(
       log(ms[1]) - log(sqrt((1 + ms[2]^2 / ms[1]^2))),
       sqrt(log(1 + ms[2]^2 / ms[1]^2))
     )
   } else {
-    tau_raw_guess <- c(log(tau_guess), 1)
+    heuristic_tau_raw_guess <- c(log(tau_guess), 1)
+  }
+  heuristic_beta_scale <- sigma_guess / sqrt(nInf)
+
+  tau_ok <- quadrature$ok && tau.dist != "Fixed" &&
+    all(is.finite(quadrature$log.tau.location)) &&
+    all(is.finite(quadrature$log.tau.scale)) &&
+    all(quadrature$log.tau.scale > 0)
+  beta_ok <- quadrature$ok &&
+    all(is.finite(quadrature$beta.scale)) &&
+    all(quadrature$beta.scale > 0)
+  group_ok <- quadrature$ok &&
+    all(is.finite(quadrature$group.scale)) &&
+    all(quadrature$group.scale > 0) &&
+    all(is.finite(quadrature$group.location))
+
+  ## log(tau) location/scale: per stratum from the quadrature when
+  ## available (decision 1), else the legacy shared scalar guess replicated
+  ## across strata (tau_raw_guess is inert whenever tau.dist == "Fixed").
+  tau_raw_guess <- if (tau_ok) {
+    rbind(location = quadrature$log.tau.location,
+          scale = quadrature$log.tau.scale)
+  } else {
+    rbind(location = rep(heuristic_tau_raw_guess[1], n.tau.strata),
+          scale = rep(heuristic_tau_raw_guess[2], n.tau.strata))
   }
 
+  ## Hybrid beta scaling: keep the pooled-GLM coefficients as the location
+  ## (design/design-gmap-quadrature-initialization.md found these more
+  ## accurate than the quadrature-aggregated location in weak-information
+  ## binomial scenarios) but use the quadrature-derived per-coefficient
+  ## scale, which is calibrated far better than the legacy shared scale.
   beta_raw_guess <- rbind(
     mean = fit.pooled$coefficients,
-    sd = rep(sigma_guess / sqrt(nInf), mX)
+    sd = if (beta_ok) quadrature$beta.scale else rep(heuristic_beta_scale, mX)
   )
 
-  assert_logical(prior_PD, FALSE, len = 1)
+  ## Per-group physical-scale numeraire for the partial-centering affine
+  ## map (consulted only when re_param = 2 and max(re_center) > 0; any
+  ## positive value is an exact reparametrization, so the legacy shared
+  ## scalar is a safe fallback).
+  group_scale_guess <- as.array(
+    if (group_ok) quadrature$group.scale else rep(heuristic_beta_scale, n.groups)
+  )
+
+  ## Per-group posterior location guess for the same affine map (consulted
+  ## only when re_param = 2 and max(re_center) > 0; any value, including 0,
+  ## is an exact reparametrization -- see partial_center_loc()'s doc
+  ## comment). 0 recovers the previous (location-free) behavior exactly and
+  ## is therefore the safe fallback when the quadrature is unavailable; the
+  ## legacy guesses never estimated a group-specific location, so there is
+  ## no legacy analogue to fall back to here.
+  group_location_guess <- as.array(
+    if (group_ok) quadrature$group.location else numeric(n.groups)
+  )
+
+  ## RBesT.MC.ncp: 0 = CP, 1 = NCP, 2 = automatic CP/NCP endpoint, 3 =
+  ## automatic partial centering. Both automatic policies are driven by the
+  ## same quadrature fractions (quadrature$center), not by the legacy
+  ## scalar tau_guess: ncp = 2 selects the CP endpoint iff every
+  ## *informative* group's fraction exceeds 400/401, the fraction implied
+  ## by the legacy rule's "tau_guess / se > 20" threshold (see
+  ## design/design-gmap-quadrature-initialization.md sec. 3). Both fall
+  ## back to the non-centered parametrization when the quadrature is
+  ## unavailable.
+  re_center <- numeric(n.groups)
+  re_param <- ncp
+  if (ncp == 2L) {
+    re_param <- 1L
+    if (H > 1 && quadrature$ok && any(quadrature$group.information > 0)) {
+      informative <- quadrature$group.information > 0
+      if (min(quadrature$center[informative]) > 400 / 401) {
+        re_param <- 0L
+      }
+    }
+  } else if (ncp == 3) {
+    if (quadrature$ok && any(quadrature$center > 0)) {
+      re_param <- 2L
+      re_center <- quadrature$center
+    } else {
+      re_param <- 1L
+    }
+  }
+  if (re_param == 0L && !has_intercept) {
+    re_param <- 2L
+    re_center[] <- 1
+  }
+  re_center <- as.array(re_center)
 
   fitData <- list(
     "H",
@@ -886,9 +983,12 @@ gMAP <- function(
     "tau.strata.pred",
     "beta.prior",
     "tau.prior",
-    "ncp",
+    "re_param",
+    "re_center",
     "tau_raw_guess",
     "beta_raw_guess",
+    "group_scale_guess",
+    "group_location_guess",
     "prior_PD"
   )
 
@@ -918,11 +1018,15 @@ gMAP <- function(
   assert_number(init, lower = 0, finite = TRUE)
 
   if (!rescale) {
-    dataL$tau_raw_guess[2] <- 1
+    dataL$tau_raw_guess[2, ] <- 1
     dataL$beta_raw_guess[2, ] <- 1
+    dataL$group_scale_guess[] <- 1
   }
 
-  exclude_pars <- c("beta_raw", "tau_raw", "xi_eta", "xi_abar")
+  exclude_pars <- c(
+    "beta_raw", "tau_raw", "xi_eta", "beta_param",
+    "s2z_quad", "s2z_log_det"
+  )
   ## in absence of an overall intercept we drop the MAP posterior
   if (!has_intercept) {
     exclude_pars <- c(exclude_pars, "theta_pred", "theta_resp_pred")
@@ -1394,6 +1498,27 @@ print.gMAPsummary <- function(x, digits = 3, ...) {
     print(signif(x$theta.pred, digits = digits))
   }
   invisible(x)
+}
+
+#' Default data-dependent `beta.prior` dispersion
+#'
+#' Reproduces the historical default prior dispersion for the fixed effects
+#' when the user omits `beta.prior`. Kept as a narrowly-scoped compatibility
+#' helper so that the quadrature-based sampler scaling in `gMAP()` does not
+#' change this data-dependent default silently, and so the circular
+#' dependency between the default prior and the quadrature approximation
+#' (which needs `beta.prior` as an input) stays explicit.
+#'
+#' @param family Character string naming the likelihood family.
+#' @param tau_guess Crude heterogeneity guess already computed for `family`.
+#' @return The default prior dispersion for `beta.prior`.
+#' @noRd
+.gmap_default_beta_prior <- function(family, tau_guess) {
+  switch(family,
+    gaussian = 1e2 * tau_guess,
+    poisson = log(1e2) + tau_guess,
+    binomial = 2
+  )
 }
 
 ## calculate the for a gamma distribution the mean and standard
