@@ -17,7 +17,7 @@ read_mix_json(con, ..., rescale = TRUE)
 to or read.}
 
 \item{...}{Additional arguments passed to the
-\code{\link[jsonlite:fromJSON]{jsonlite::toJSON()}} and
+\code{\link[jsonlite:toJSON]{jsonlite::toJSON()}} and
 \code{\link[jsonlite:fromJSON]{jsonlite::fromJSON()}} function for writing and
 reading, respectively.}
 
@@ -51,13 +51,22 @@ will be cast to a simple mixture object such that diagnostics
 from the \code{"EM"} fitting procedure are dropped from the
 object. For easier readability the user is encouraged to set the
 argument \code{pretty=TRUE}, which is passed to the
-\code{\link[jsonlite:fromJSON]{jsonlite::toJSON()}} function and makes the output more
+\code{\link[jsonlite:toJSON]{jsonlite::toJSON()}} function and makes the output more
 human readable.
 
 Note that when reading in mixture objects, then these are not
 necessarily equal to the mixtures passed to the \code{write_mix_json}
 function. This is a consequence of the limited precision of the
 textual representation as defined by the \code{digits} argument.
+
+Whenever the requested precision is so low that a mixture weight is
+written as zero, then \code{write_mix_json} issues a warning, but
+still writes the mixture. Such a mixture can be read back
+without problems, since \code{read_mix_json} rescales the weights
+by default and zero weighted components are maintained. However,
+in case all mixture weights are written as zero, then
+\code{write_mix_json} aborts with an error as the mixture cannot be
+recovered any more from such a representation.
 }
 \examples{
 \dontrun{
@@ -69,13 +78,13 @@ mix <- read_mix_json("normal_mixture.json")
 }
 }
 \seealso{
-Other mixdist: 
+Other mixdist:
 \code{\link{mix}},
-\code{\link{mixbeta}()},
-\code{\link{mixcombine}()},
-\code{\link{mixgamma}()},
-\code{\link{mixmvnorm}()},
-\code{\link{mixnorm}()},
+\code{\link[=mixbeta]{mixbeta()}},
+\code{\link[=mixcombine]{mixcombine()}},
+\code{\link[=mixgamma]{mixgamma()}},
+\code{\link[=mixmvnorm]{mixmvnorm()}},
+\code{\link[=mixnorm]{mixnorm()}},
 \code{\link{mixplot}}
 }
 \concept{mixdist}
