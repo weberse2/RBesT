@@ -15,6 +15,7 @@ src/stan_files/.*\.cc$
 src/stan_files/.*\.hpp$
 ^inst/include/beta_binomial\.hpp$
 ^inst/sbc/calibration\.rds$
+^inst/doc/benchmarks/results$
 ^inst/sbc/calibration_data\.rds$
 ^inst/sbc/sbc_report_full\.html$
 ^demo/oc2S_interim_multiK\.R$
@@ -45,3 +46,5 @@ src/stan_files/.*\.hpp$
 ^\.lintr$
 ^AGENTS\.md$
 ^index\.html$
+^node_modules
+^package-lock\.json$
