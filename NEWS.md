@@ -15,7 +15,8 @@
   Student-t random effects, several `tau` strata and intercept-free
   models continue to use the previous parametrization. Set
   `options(RBesT.MC.s2z = FALSE)` to use the conventional
-  parametrization.
+  parametrization. Many thanks to Sean Pinkney and Nikolai Vetr for
+  presenting the approch at StanCon 2026.
 * Automatic partial centering is now the default for all `gMAP` model
   variants (`options(RBesT.MC.ncp = 3)`). Before sampling, fixed-effort Gaussian
   quadrature estimates the posterior median of each heterogeneity stratum
@@ -28,7 +29,8 @@
   heterogeneity guess (see below). Partial centering is
   independent of whether the model is eligible for the sum-to-zero
   representation. To restore the pre-1.12 sampling scheme, set
-  `options(RBesT.MC.s2z = FALSE, RBesT.MC.ncp = 1)`.
+  `options(RBesT.MC.s2z = FALSE, RBesT.MC.ncp = 1)`. Man thanks to
+  Sean Pinkney for the implementation in `brms` used as template.
 * Reuse the partial-centering quadrature to scale `log(tau)`, fixed effects,
   and group effects for sampling. Fixed-effect locations remain pooled-GLM
   estimates, while group locations and scales enter an exact affine
